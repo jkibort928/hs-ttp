@@ -94,9 +94,11 @@ parseArgs strs = helper strs [] [] [] [] [] True
 				| processFlags && isLFlag s1					-> helper [s2]		argv		fs	 					((removeDashes s1):lfs)		fargs		lfargs		processFlags
 				| processFlags && isFlag s1 && isArgFlag s1		->					(argv,		((removeDashes s1):fs),	lfs,						(s2:fargs),	lfargs)
 				| processFlags && isFlag s1						-> helper [s2]		argv		((removeDashes s1):fs)	lfs							fargs		lfargs		processFlags
+				| otherwise										-> helper [s2]		(s1:argv)	fs						lfs							fargs		lfargs		processFlags
 			(s:[])
 				| processFlags && isLFlag s 					-> 					(argv,		fs,						((removeDashes s):lfs),		fargs,		lfargs)
 				| processFlags && isFlag s 						-> 					(argv,		((removeDashes s):fs),	lfs,						fargs,		lfargs)
+				| otherwise 									-> 					((s:argv),	fs,						lfs,						fargs,		lfargs)
 			[] -> (argv, fs, lfs, fargs, lfargs)
 			
 main :: IO ()
