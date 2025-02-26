@@ -5,7 +5,7 @@ Making a basic web server in Haskell because of an ignorant tiktok I saw that sa
 - Install ghc using ghcup if you haven't already
 - Run 'make' in the repo directory
 - You now have a binary for spoober located at src/bin/Main
-- Move src/bin/Main anywhere you like
+- Move and rename src/bin/Main as you like
 
 # USAGE
 	server [OPTIONS] <DIRECTORY>
