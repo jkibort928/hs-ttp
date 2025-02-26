@@ -100,11 +100,14 @@ parseArgs strs = helper strs [] [] [] [] [] True
 				| processFlags && isFlag s 						-> 					(argv,		((removeDashes s):fs),	lfs,						fargs,		lfargs)
 				| otherwise 									-> 					((s:argv),	fs,						lfs,						fargs,		lfargs)
 			[] -> (argv, fs, lfs, fargs, lfargs)
+
+reverse5 :: ([a], [b], [c], [d], [e]) -> ([a], [b], [c], [d], [e])
+reverse5 (l1, l2, l3, l4, l5) = (reverse l1, reverse l2, reverse l3, reverse l4, reverse l5)
 			
 main :: IO ()
 main = do
 	args <- getArgs
-	let (argv, flags, longFlags, flagArgs, longFlagArgs) = parseArgs args
+	let (argv, flags, longFlags, flagArgs, longFlagArgs) = reverse5 (parseArgs args)
 
 	if ("h" `elem` flags) || ("help" `elem` longFlags) then do
 	        putStrLn helpMessage
