@@ -75,9 +75,10 @@ removeDashes str	= str
 --	List of longflags
 --	List of flagArgs
 --	List of lflagArgs
-parseArgs :: [String] -> ([String], [String], [String], [String], [String])
-parseArgs [] = throw (Error "Error: No arguments specified")
-parseArgs strs = helper strs [] [] [] [] [] True
+-- Lists will be reversed!
+parseRawArgs :: [String] -> ([String], [String], [String], [String], [String])
+parseRawArgs [] = throw (Error "Error: No arguments specified")
+parseRawArgs strs = helper strs [] [] [] [] [] True
 	where
 		helper :: [String] -> [String] -> [String] -> [String] -> [String] -> [String] -> Bool -> ([String], [String], [String], [String], [String])
 		helper args argv fs lfs fargs lfargs processFlags = case args of
@@ -103,11 +104,14 @@ parseArgs strs = helper strs [] [] [] [] [] True
 
 reverse5 :: ([a], [b], [c], [d], [e]) -> ([a], [b], [c], [d], [e])
 reverse5 (l1, l2, l3, l4, l5) = (reverse l1, reverse l2, reverse l3, reverse l4, reverse l5)
-			
+
+parseArgs :: [String] -> ([String], [String], [String], [String], [String])
+parseArgs = reverse5 parseRawArgs
+
 main :: IO ()
 main = do
 	args <- getArgs
-	let (argv, flags, longFlags, flagArgs, longFlagArgs) = reverse5 (parseArgs args)
+	let (argv, flags, longFlags, flagArgs, longFlagArgs) = parseArgs args
 
 	if ("h" `elem` flags) || ("help" `elem` longFlags) then do
 	        putStrLn helpMessage
