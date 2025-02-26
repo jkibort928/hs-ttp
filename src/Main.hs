@@ -34,7 +34,7 @@ main = do
 
 		print ("rootDir: " ++ rootDir)
 		print ("arguments: " ++ concat arguments)
-        print ("flags: " ++ concat flags)
-        print ("flagArgs: " ++ concat flagArgs) 
-        print ("longFlags: " ++ concat longFlags)
-        print ("longFlagArgs: " ++ concat longFlagArgs)
+		print ("flags: " ++ concat flags)
+		print ("flagArgs: " ++ concat flagArgs) 
+		print ("longFlags: " ++ concat longFlags)
+		print ("longFlagArgs: " ++ concat longFlagArgs)
