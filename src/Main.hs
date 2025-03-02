@@ -79,4 +79,18 @@ main = do
 
         putStrLn ("port: " ++ show port);
 
-        
+        -- Open the listener socket
+
+        -- Recieve http request
+
+        -- Decode http request
+
+        -- Craft http response
+            -- Read file in question
+            -- Send error if not correct
+            -- Maybe check if file is within the root directory
+            -- Deal with ../ and such
+
+        -- Send http response
+
+        -- Listen again
