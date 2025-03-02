@@ -1,5 +1,7 @@
 # hs-ttp
-Making a basic web server in Haskell because of an ignorant tiktok I saw that said you couldn't
+Making a basic web server in Haskell utilizing as little hand-holding libraries as possible
+(Made this because an ignorant tiktoker said it wasn't possible and I thought it would be fun)
+
 
 # INSTALLATION
 - Install ghc using ghcup if you haven't already
