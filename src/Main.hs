@@ -5,15 +5,14 @@ import Control.Exception ( throw, Exception )
 import Control.Monad ( when, unless )
 import Text.Read (readMaybe)
 
+-- Custom imports
+import CLIUtil ( checkFlags, checkLFlags, parseArgs, isArgFlag, isArgLFlag )
+
 -- Error handling
 import Data.Typeable ( Typeable )
 newtype Error = Error {errMsg :: String}
     deriving (Show, Typeable)
 instance Exception Error
-
--- Custom imports
-import CLIUtil (checkFlags, checkLFlags, parseArgs, isArgFlag, isArgLFlag)
-
 
 -- Help message to be displayed
 helpMessage :: String
@@ -46,7 +45,7 @@ parsePort flags flagArgs lflags lflagArgs = case helper flags flagArgs of
         helper [] _             = defaultPort
         helper _ []             = defaultPort
         helper (f:fs) (fa:fas) 
-            | isArgFlag f || isArgLFlag f   = readPort fa
+            | f == "p" || f == "port"       = readPort fa
             | otherwise                     = helper fs (fa:fas)
 
 -- Main
