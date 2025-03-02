@@ -1,17 +1,18 @@
+-- Library imports
 import System.IO
 import System.Environment (getArgs)
 import Control.Exception ( throw, Exception )
 import Control.Monad ( when, unless )
 import Text.Read (readMaybe)
 
--- Custom modules
-import CLIUtil (checkFlags, checkLFlags, parseArgs, isArgFlag, isArgLFlag)
-
 -- Error handling
 import Data.Typeable ( Typeable )
 newtype Error = Error {errMsg :: String}
     deriving (Show, Typeable)
 instance Exception Error
+
+-- Custom imports
+import CLIUtil (checkFlags, checkLFlags, parseArgs, isArgFlag, isArgLFlag)
 
 
 -- Help message to be displayed
@@ -20,6 +21,7 @@ helpMessage = "hi\n"
 
 defaultPort :: Int
 defaultPort = 8080
+
 
 -- Reads a string into an int, and if unsuccessful, returns a fallback value
 safeIntRead :: Int -> String -> Int
@@ -47,7 +49,7 @@ parsePort flags flagArgs lflags lflagArgs = case helper flags flagArgs of
             | isArgFlag f || isArgLFlag f   = readPort fa
             | otherwise                     = helper fs (fa:fas)
 
-            
+-- Main
 main :: IO ()
 main = do
     args <- getArgs
@@ -76,3 +78,5 @@ main = do
         let port = parsePort flags flagArgs longFlags longFlagArgs
 
         putStrLn ("port: " ++ show port);
+
+        
