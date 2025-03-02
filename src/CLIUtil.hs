@@ -1,4 +1,4 @@
-module CLIUtil (checkFlags, checkLFlags, parseArgs) where
+module CLIUtil (checkFlags, checkLFlags, parseArgs, isArgFlag, isArgLFlag) where
 
 import Control.Exception ( throw, Exception )
 
@@ -8,7 +8,7 @@ newtype Error = Error {errMsg :: String}
     deriving (Show, Typeable)
 instance Exception Error
 
--- CLI Boilerplate code
+-- Configuration
 
 -- Define valid flags
 possibleFlags :: [Char]
@@ -21,6 +21,9 @@ argFlags :: [Char]
 argFlags = ['p']
 argLFlags :: [String]
 argLFlags = ["port"]
+
+
+-- CLI Boilerplate code
 
 -- Returns false if there is a flag that is not valid
 checkFlags :: [String] -> Bool
@@ -50,8 +53,8 @@ isLFlag _           = False
 -- Returns true if the string is a flag that takes an argument
 isArgFlag :: String -> Bool
 isArgFlag "-"           = False
-isArgFlag ('-':c:[])    = c `elem` argFlags
-isArgFlag (c:[])        = c `elem` argFlags -- idk if needed
+isArgFlag ('-':c:[])    = c `elem` argFlags -- with dash
+isArgFlag (c:[])        = c `elem` argFlags -- without dash
 isArgFlag _             = False
 
 -- Returns true if the string is a longflag that takes an argument
@@ -64,42 +67,40 @@ removeDashes :: String -> String
 removeDashes ('-':cs)   = removeDashes cs
 removeDashes str    = str
 
+-- Reverses each list within a 5tuple
+reverse5 :: ([a], [b], [c], [d], [e]) -> ([a], [b], [c], [d], [e])
+reverse5 (l1, l2, l3, l4, l5) = (reverse l1, reverse l2, reverse l3, reverse l4, reverse l5)
+
 -- Parse a list of strings into a 5tuple of strings containing:
 --  List of arguments
 --  List of flags
 --  List of longflags
---  List of flagArgs
---  List of lflagArgs
--- Lists will be reversed!
-parseRawArgs :: [String] -> ([String], [String], [String], [String], [String])
-parseRawArgs [] = throw (Error "Error: No arguments specified")
-parseRawArgs strs = helper strs [] [] [] [] [] True
-    where
-        helper :: [String] -> [String] -> [String] -> [String] -> [String] -> [String] -> Bool -> ([String], [String], [String], [String], [String])
-        helper args argv fs lfs fargs lfargs processFlags = case args of
-            (s1:s2:ss)
-                | s1 == "--"                                    -> helper (s2:ss)   argv        fs                      lfs                         fargs       lfargs      False
-                | processFlags && isLFlag s1 && isArgLFlag s1   -> helper ss        argv        fs                      ((removeDashes s1):lfs)     fargs       (s2:lfargs) processFlags
-                | processFlags && isLFlag s1                    -> helper (s2:ss)   argv        fs                      ((removeDashes s1):lfs)     fargs       lfargs      processFlags
-                | processFlags && isFlag s1 && isArgFlag s1     -> helper ss        argv        ((removeDashes s1):fs)  lfs                         (s2:fargs)  lfargs      processFlags
-                | processFlags && isFlag s1                     -> helper (s2:ss)   argv        ((removeDashes s1):fs)  lfs                         fargs       lfargs      processFlags
-                | otherwise                                     -> helper (s2:ss)   (s1:argv)   fs                      lfs                         fargs       lfargs      processFlags
-            (s1:s2:[])
-                | s1 == "--"                                    ->                  ((s2:argv), fs,                     lfs,                        fargs,      lfargs)
-                | processFlags && isLFlag s1 && isArgLFlag s1   ->                  (argv,      fs,                     ((removeDashes s1):lfs),    fargs,      (s2:lfargs))
-                | processFlags && isLFlag s1                    -> helper [s2]      argv        fs                      ((removeDashes s1):lfs)     fargs       lfargs      processFlags
-                | processFlags && isFlag s1 && isArgFlag s1     ->                  (argv,      ((removeDashes s1):fs), lfs,                        (s2:fargs), lfargs)
-                | processFlags && isFlag s1                     -> helper [s2]      argv        ((removeDashes s1):fs)  lfs                         fargs       lfargs      processFlags
-                | otherwise                                     -> helper [s2]      (s1:argv)   fs                      lfs                         fargs       lfargs      processFlags
-            (s:[])
-                | processFlags && isLFlag s                     ->                  (argv,      fs,                     ((removeDashes s):lfs),     fargs,      lfargs)
-                | processFlags && isFlag s                      ->                  (argv,      ((removeDashes s):fs),  lfs,                        fargs,      lfargs)
-                | otherwise                                     ->                  ((s:argv),  fs,                     lfs,                        fargs,      lfargs)
-            [] -> (argv, fs, lfs, fargs, lfargs)
-
-reverse5 :: ([a], [b], [c], [d], [e]) -> ([a], [b], [c], [d], [e])
-reverse5 (l1, l2, l3, l4, l5) = (reverse l1, reverse l2, reverse l3, reverse l4, reverse l5)
-
+--  List of flagArgs in order
+--  List of lflagArgs in order
 parseArgs :: [String] -> ([String], [String], [String], [String], [String])
-parseArgs x = reverse5 (parseRawArgs x)
-
+parseArgs [] = throw (Error "Error: No arguments specified")
+parseArgs x = reverse5 (parseRawArgs x) where
+	-- Lists will be reversed!
+	parseRawArgs strs = helper strs [] [] [] [] [] True
+	    where
+	        helper :: [String] -> [String] -> [String] -> [String] -> [String] -> [String] -> Bool -> ([String], [String], [String], [String], [String])
+	        helper args argv fs lfs fargs lfargs processFlags = case args of
+	            (s1:s2:ss)
+	                | s1 == "--"                                    -> helper (s2:ss)   argv        fs                      lfs                         fargs       lfargs      False
+	                | processFlags && isLFlag s1 && isArgLFlag s1   -> helper ss        argv        fs                      ((removeDashes s1):lfs)     fargs       (s2:lfargs) processFlags
+	                | processFlags && isLFlag s1                    -> helper (s2:ss)   argv        fs                      ((removeDashes s1):lfs)     fargs       lfargs      processFlags
+	                | processFlags && isFlag s1 && isArgFlag s1     -> helper ss        argv        ((removeDashes s1):fs)  lfs                         (s2:fargs)  lfargs      processFlags
+	                | processFlags && isFlag s1                     -> helper (s2:ss)   argv        ((removeDashes s1):fs)  lfs                         fargs       lfargs      processFlags
+	                | otherwise                                     -> helper (s2:ss)   (s1:argv)   fs                      lfs                         fargs       lfargs      processFlags
+	            (s1:s2:[])
+	                | s1 == "--"                                    ->                  ((s2:argv), fs,                     lfs,                        fargs,      lfargs)
+	                | processFlags && isLFlag s1 && isArgLFlag s1   ->                  (argv,      fs,                     ((removeDashes s1):lfs),    fargs,      (s2:lfargs))
+	                | processFlags && isLFlag s1                    -> helper [s2]      argv        fs                      ((removeDashes s1):lfs)     fargs       lfargs      processFlags
+	                | processFlags && isFlag s1 && isArgFlag s1     ->                  (argv,      ((removeDashes s1):fs), lfs,                        (s2:fargs), lfargs)
+	                | processFlags && isFlag s1                     -> helper [s2]      argv        ((removeDashes s1):fs)  lfs                         fargs       lfargs      processFlags
+	                | otherwise                                     -> helper [s2]      (s1:argv)   fs                      lfs                         fargs       lfargs      processFlags
+	            (s:[])
+	                | processFlags && isLFlag s                     ->                  (argv,      fs,                     ((removeDashes s):lfs),     fargs,      lfargs)
+	                | processFlags && isFlag s                      ->                  (argv,      ((removeDashes s):fs),  lfs,                        fargs,      lfargs)
+	                | otherwise                                     ->                  ((s:argv),  fs,                     lfs,                        fargs,      lfargs)
+	            [] -> (argv, fs, lfs, fargs, lfargs)
