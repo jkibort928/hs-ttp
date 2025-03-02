@@ -4,6 +4,7 @@ import System.Environment (getArgs)
 import Control.Exception ( throw, Exception )
 import Control.Monad ( when, unless )
 import Text.Read (readMaybe)
+import Network.Socket -- https://hackage.haskell.org/package/network-2.6.3.5/docs/Network-Socket.html
 
 -- Custom imports
 import CLIUtil ( checkFlags, checkLFlags, parseArgs, isArgFlag, isArgLFlag )
