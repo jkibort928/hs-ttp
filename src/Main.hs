@@ -74,7 +74,11 @@ main = do
 
         putStrLn ("port: " ++ port);
 
-        runServer port
+        runServer port serverFunc
+            where
+                serverFunc sock cliAddr = do
+                    putStrLn ("socket: " + show socket)
+                    putStrLn ("cliAddr: " + show cliAddr)
         
         -- Open the listener socket
 
