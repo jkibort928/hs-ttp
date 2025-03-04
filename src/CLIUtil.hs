@@ -86,21 +86,24 @@ parseArgs x = reverse5 (parseRawArgs x) where
             helper :: [String] -> [String] -> [String] -> [String] -> [String] -> [String] -> Bool -> ([String], [String], [String], [String], [String])
             helper args argv fs lfs fargs lfargs processFlags = case args of
                 (s1:s2:ss)
+                    -- double dash signifies we should stop processing subsequent flags and treat them as normal strings
                     | s1 == "--"                                    -> helper (s2:ss)   argv        fs                      lfs                         fargs       lfargs      False
+                    -- Process long argflag s1 with argument s2
                     | processFlags && isLFlag s1 && isArgLFlag s1   -> helper ss        argv        fs                      ((removeDashes s1):lfs)     fargs       (s2:lfargs) processFlags
+                    -- Process long non-arg flag s1
                     | processFlags && isLFlag s1                    -> helper (s2:ss)   argv        fs                      ((removeDashes s1):lfs)     fargs       lfargs      processFlags
+                    -- Process short argflag s1 with argument s2
                     | processFlags && isFlag s1 && isArgFlag s1     -> helper ss        argv        ((removeDashes s1):fs)  lfs                         (s2:fargs)  lfargs      processFlags
+                    -- Process short non-arg flag s1
                     | processFlags && isFlag s1                     -> helper (s2:ss)   argv        ((removeDashes s1):fs)  lfs                         fargs       lfargs      processFlags
+                    -- Process normal argument
                     | otherwise                                     -> helper (s2:ss)   (s1:argv)   fs                      lfs                         fargs       lfargs      processFlags
-                (s1:s2:[])
-                    | s1 == "--"                                    ->                  ((s2:argv), fs,                     lfs,                        fargs,      lfargs)
-                    | processFlags && isLFlag s1 && isArgLFlag s1   ->                  (argv,      fs,                     ((removeDashes s1):lfs),    fargs,      (s2:lfargs))
-                    | processFlags && isLFlag s1                    -> helper [s2]      argv        fs                      ((removeDashes s1):lfs)     fargs       lfargs      processFlags
-                    | processFlags && isFlag s1 && isArgFlag s1     ->                  (argv,      ((removeDashes s1):fs), lfs,                        (s2:fargs), lfargs)
-                    | processFlags && isFlag s1                     -> helper [s2]      argv        ((removeDashes s1):fs)  lfs                         fargs       lfargs      processFlags
-                    | otherwise                                     -> helper [s2]      (s1:argv)   fs                      lfs                         fargs       lfargs      processFlags
                 (s:[])
+                    -- Note that arg flags in the last position will cause there to be an insufficient number of args in the arg list
+                    -- Process longflag
                     | processFlags && isLFlag s                     ->                  (argv,      fs,                     ((removeDashes s):lfs),     fargs,      lfargs)
+                    -- Process shortflag
                     | processFlags && isFlag s                      ->                  (argv,      ((removeDashes s):fs),  lfs,                        fargs,      lfargs)
+                    -- Process arg
                     | otherwise                                     ->                  ((s:argv),  fs,                     lfs,                        fargs,      lfargs)
                 [] -> (argv, fs, lfs, fargs, lfargs)
