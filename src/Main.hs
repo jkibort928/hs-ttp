@@ -1,13 +1,15 @@
+module Main (main) where
+
 -- Library imports
 import System.IO
 import System.Environment (getArgs)
 import Control.Exception ( throw, Exception )
 import Control.Monad ( when, unless )
 import Text.Read (readMaybe)
-import Network.Socket -- https://hackage.haskell.org/package/network-2.6.3.5/docs/Network-Socket.html
 
 -- Custom imports
 import CLIUtil ( checkFlags, checkLFlags, parseArgs, isArgFlag, isArgLFlag )
+import HttpServer ( runServer )
 
 -- Error handling
 import Data.Typeable ( Typeable )
@@ -19,15 +21,8 @@ instance Exception Error
 helpMessage :: String
 helpMessage = "hi\n"
 
-defaultPort :: Int
-defaultPort = 8080
-
-
--- Reads a string into an int, and if unsuccessful, returns a fallback value
-safeIntRead :: Int -> String -> Int
-safeIntRead fallback str = case readMaybe str of
-    Just x -> x
-    Nothing -> fallback
+defaultPort :: String
+defaultPort = "8080"
 
 -- Safely reads a port number from a string, returning the default port if not valid
 readPort :: String -> Int
@@ -37,7 +32,7 @@ readPort = safeIntRead defaultPort
 -- Arguments are in the order: flags flagArgs longFlags longFlagArgs
 -- Short flags are prioritized, but if it equals the default port, we will check longflags.
 -- Invalid arguments are treated as default
-parsePort :: [String] -> [String] -> [String] -> [String] -> Int
+parsePort :: [String] -> [String] -> [String] -> [String] -> Stirng
 parsePort flags flagArgs lflags lflagArgs = case helper flags flagArgs of
     result  | result == defaultPort -> helper lflags lflagArgs -- Check longflags if short flags return default
             | otherwise             -> result -- Default
@@ -46,7 +41,7 @@ parsePort flags flagArgs lflags lflagArgs = case helper flags flagArgs of
         helper [] _             = defaultPort
         helper _ []             = defaultPort
         helper (f:fs) (fa:fas) 
-            | f == "p" || f == "port"       = readPort fa
+            | f == "p" || f == "port"       = fa
             | otherwise                     = helper fs (fa:fas)
 
 -- Main
@@ -77,8 +72,10 @@ main = do
         -- Get the port
         let port = parsePort flags flagArgs longFlags longFlagArgs
 
-        putStrLn ("port: " ++ show port);
+        putStrLn ("port: " ++ port);
 
+        runServer port
+        
         -- Open the listener socket
 
         -- Recieve http request
