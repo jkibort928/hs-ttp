@@ -1,6 +1,6 @@
 module TCPServer ( runServer ) where
 
-import Network.Socket
+import Network.Socket -- WAHHHH I DONT WANNA DEAL WITH DEPENDENCIES ;((((((
 import qualified Control.Exception as E
 import qualified Data.List.NonEmpty as NE
 
