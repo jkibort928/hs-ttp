@@ -6,28 +6,24 @@ import qualified Data.List.NonEmpty as NE
 
 -- Heavily references https://hackage.haskell.org/package/network-3.2.7.0/docs/Network-Socket.html
 
--- Runs the server on the given port, using server as the main function to run for each connection
-runServer :: String -> (Socket -> SockAddr -> IO a) -> IO ()
-runServer port server = withSocketsDo $ do
-    addr <- resolve
-    E.bracket (open addr) close loop
+-- Resolve the hostname given the port
+resolveSelf :: ServiceName -> IO AddrInfo
+resolveSelf port = do
+    let hints = defaultHints {
+            addrFlags = [AI_PASSIVE] -- Wildcard when no address given
+        ,   addrSocketType = Stream -- TCP
+    }
+    addrList <- getAddrInfo (Just hints) Nothing (Just port)
+    return (NE.head addrList) -- getAddrInfo never returns an empty list without an error
+
+-- Open the socket on address addr
+-- If openSocket errors, we close it
+-- If success, we call setupSock on it
+openSocket :: AddrInfo -> IO Socket
+openSocket addr = E.bracketOnError (openSocket addr) close setupSock
     where
-    
-        -- Resolve the hostname of the server given the port
-        resolve = do
-            let hints = defaultHints {
-                    addrFlags = [AI_PASSIVE] -- Wildcard when no address given
-                ,   addrSocketType = Stream -- TCP
-            }
-            addrList <- getAddrInfo (Just hints) Nothing (Just port)
-            return (NE.head addrList) -- getAddrInfo never returns an empty list without an error
-
-        -- Open the socket on address addr
-        -- If openSocket errors, we close it, if not, we call setupSock on it
-        open addr = E.bracketOnError (openSocket addr) close setupSock
-
         -- Setup the socket after it is opened and set it to listen
-        setupSock sock = do
+        setupSock sock =  do
         
             -- Basic socket setup options
             setSocketOption sock ReuseAddr 1
@@ -43,12 +39,12 @@ runServer port server = withSocketsDo $ do
 
             return sock
 
-        -- Listener accept loop
-        -- Forever calls "accept sock"
-        -- On fail it will close the connection (the connection is first value of the tuple returned by accept)
-        -- On success, it will call handleConn on it
-        loop sock = forever $ E.bracketOnError (accept sock) (close . fst) handleConn
-
+-- Listener accept loop
+-- Forever calls "accept sock"
+-- On fail it will close the connection (the connection is first value of the tuple returned by accept)
+-- On success, it will call handleConn on it
+acceptLoop sock = forever $ E.bracketOnError (accept sock) (close . fst) handleConn
+    where
         -- Handle each connection, spawning a thread
         -- We want to return nothing so we use void to discard the threadId from forkFinally
         -- We use forkFinally to start the server, and give it a cleanup function to run when the thread ends
@@ -56,3 +52,16 @@ runServer port server = withSocketsDo $ do
         --   but we don't want to take an argument when we gracefully close.
         -- Const just "eats" an argument essentially
         handleConn (conn, peer) = void $ forkFinally (server conn peer) (const $ gracefulClose conn 5000)
+
+-- Runs the server on the given port, using server as the main function to run for each connection
+runServer :: String -> (Socket -> SockAddr -> IO a) -> IO ()
+runServer port server = withSocketsDo $ do
+
+    -- Resolve your address
+    addr <- resolveSelf port
+    
+    -- Open the socket
+    -- Calls close on the socket if openSocket errors
+    -- Calls acceptLoop on the socket if success
+    E.bracket (openSocket addr) close acceptLoop 
+
