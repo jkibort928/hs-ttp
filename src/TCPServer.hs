@@ -1,4 +1,4 @@
-module TCPServer ( runServer )
+module TCPServer ( runServer ) where
 
 import Network.Socket
 import qualified Control.Exception as E
