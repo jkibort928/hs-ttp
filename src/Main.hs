@@ -9,7 +9,7 @@ import Text.Read (readMaybe)
 
 -- Custom imports
 import CLIUtil ( checkFlags, checkLFlags, parseArgs, isArgFlag, isArgLFlag )
-import HttpServer ( runServer )
+import TCPServer ( runServer )
 
 -- Error handling
 import Data.Typeable ( Typeable )
