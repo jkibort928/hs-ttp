@@ -2,7 +2,7 @@ Idk I just need this so cabal shuts up
 
 Have a cat I found 
 
-<!-- language: lang-none -->
+```
  ,_     _
  |\\_,-~/
  / _  _ |    ,--.
@@ -13,3 +13,4 @@ Have a cat I found
  \ \ ,  /      |
   || |-_\__   /
  ((_/`(____,-'
+```
