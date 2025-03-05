@@ -24,10 +24,6 @@ helpMessage = "hi\n"
 defaultPort :: String
 defaultPort = "8080"
 
--- Safely reads a port number from a string, returning the default port if not valid
-readPort :: String -> Int
-readPort = safeIntRead defaultPort
-
 -- Get the port from the command line flags
 -- Arguments are in the order: flags flagArgs longFlags longFlagArgs
 -- Short flags are prioritized, but if it equals the default port, we will check longflags.
