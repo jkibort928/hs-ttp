@@ -46,7 +46,7 @@ openMySocket addr = E.bracketOnError (openSocket addr) close setupSock
 -- On fail it will close the connection (the connection is first value of the tuple returned by accept)
 -- On success, it will call handleConn on it
 acceptLoop :: (Socket -> SockAddr -> IO a) -> Socket -> IO ()
-acceptLoop server sock = forever $ E.bracketOnError (accept sock) (close . fst) (handleConn server)
+acceptLoop server sock = forever $ E.bracketOnError (accept sock) (close . fst) handleConn
     where
         -- Handle each connection, spawning a thread
         -- We want to return nothing so we use void to discard the threadId from forkFinally
@@ -54,7 +54,7 @@ acceptLoop server sock = forever $ E.bracketOnError (accept sock) (close . fst) 
         -- We use const because forkFinally expects a function,
         --   but we don't want to take an argument when we gracefully close.
         -- Const just "eats" an argument essentially
-        handleConn server (conn, peer) = void $ forkFinally (server conn peer) (const $ gracefulClose conn 5000)
+        handleConn (conn, peer) = void $ forkFinally (server conn peer) (const $ gracefulClose conn 5000)
 
 -- Runs the server on the given port, using server as the main function to run for each connection
 runServer :: (Socket -> SockAddr -> IO a) -> ServiceName -> IO ()

@@ -32,7 +32,7 @@ readPort = safeIntRead defaultPort
 -- Arguments are in the order: flags flagArgs longFlags longFlagArgs
 -- Short flags are prioritized, but if it equals the default port, we will check longflags.
 -- Invalid arguments are treated as default
-parsePort :: [String] -> [String] -> [String] -> [String] -> Stirng
+parsePort :: [String] -> [String] -> [String] -> [String] -> String
 parsePort flags flagArgs lflags lflagArgs = case helper flags flagArgs of
     result  | result == defaultPort -> helper lflags lflagArgs -- Check longflags if short flags return default
             | otherwise             -> result -- Default
