@@ -22,5 +22,9 @@ Making a basic web server in Haskell utilizing as little hand-holding libraries 
 		The directory to be used as the root of the HTTP server.
 		All subfolders within this directory will be accessible to the server's clients.
 
+	This will create a basic HTTP server that has its root based in DIRECTORY.
+	It can access any subfolder and file within this directory.
+	It cannot access anything outside of this directory.
 
-This program will ...
+	The server binds to the wildcard address, meaning it will be accessible on any ip interface.
+
