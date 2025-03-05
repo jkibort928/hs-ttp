@@ -73,8 +73,8 @@ main = do
         runServer serverFunc port
             where
                 serverFunc sock cliAddr = do
-                    putStrLn ("socket: " + show sock)
-                    putStrLn ("cliAddr: " + show cliAddr)
+                    putStrLn ("socket: " ++ show sock)
+                    putStrLn ("cliAddr: " ++ show cliAddr)
         
         -- Open the listener socket
 
