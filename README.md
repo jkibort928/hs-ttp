@@ -5,11 +5,10 @@ Making a basic web server in Haskell utilizing as little hand-holding libraries 
 
 # INSTALLATION
 - Install ghc and cabal using ghcup if you haven't already
-- Run 'cabal build' in the repo directory
-- TODO: Instructions on where the binary is
+- Run 'cabal install' in the repo directory to install the binary into ~/.cabal/bin
 
 # USAGE
-	server [OPTIONS] <DIRECTORY>
+	hs-ttp [OPTIONS] <DIRECTORY>
 
 	OPTIONS: 
 		-h:
