@@ -4,10 +4,9 @@ Making a basic web server in Haskell utilizing as little hand-holding libraries 
 
 
 # INSTALLATION
-- Install ghc using ghcup if you haven't already
-- Run 'make' in the repo directory
-- You now have a binary for the server located at src/bin/Main
-- Move and rename src/bin/Main as you like
+- Install ghc and cabal using ghcup if you haven't already
+- Run 'cabal build' in the repo directory
+- TODO: Instructions on where the binary is
 
 # USAGE
 	server [OPTIONS] <DIRECTORY>
