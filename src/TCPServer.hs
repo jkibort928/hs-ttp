@@ -1,6 +1,8 @@
 module TCPServer ( runServer ) where
 
-import Network.Socket -- WAHHHH I DONT WANNA DEAL WITH DEPENDENCIES ;((((((
+import Network.Socket 
+import Control.Concurrent ( forkFinally )
+import Control.Monad ( forever, void )
 import qualified Control.Exception as E
 import qualified Data.List.NonEmpty as NE
 
@@ -16,11 +18,11 @@ resolveSelf port = do
     addrList <- getAddrInfo (Just hints) Nothing (Just port)
     return (NE.head addrList) -- getAddrInfo never returns an empty list without an error
 
--- Open the socket on address addr
+-- Open the socket on address addr and set up socket options
 -- If openSocket errors, we close it
 -- If success, we call setupSock on it
-openSocket :: AddrInfo -> IO Socket
-openSocket addr = E.bracketOnError (openSocket addr) close setupSock
+openMySocket :: AddrInfo -> IO Socket
+openMySocket addr = E.bracketOnError (openSocket addr) close setupSock
     where
         -- Setup the socket after it is opened and set it to listen
         setupSock sock =  do
@@ -43,6 +45,7 @@ openSocket addr = E.bracketOnError (openSocket addr) close setupSock
 -- Forever calls "accept sock"
 -- On fail it will close the connection (the connection is first value of the tuple returned by accept)
 -- On success, it will call handleConn on it
+acceptLoop :: Socket -> IO ()
 acceptLoop sock = forever $ E.bracketOnError (accept sock) (close . fst) handleConn
     where
         -- Handle each connection, spawning a thread
@@ -54,8 +57,8 @@ acceptLoop sock = forever $ E.bracketOnError (accept sock) (close . fst) handleC
         handleConn (conn, peer) = void $ forkFinally (server conn peer) (const $ gracefulClose conn 5000)
 
 -- Runs the server on the given port, using server as the main function to run for each connection
-runServer :: String -> (Socket -> SockAddr -> IO a) -> IO ()
-runServer port server = withSocketsDo $ do
+runServer :: (Socket -> SockAddr -> IO a) -> ServiceName -> IO ()
+runServer server port = withSocketsDo $ do
 
     -- Resolve your address
     addr <- resolveSelf port
@@ -63,5 +66,5 @@ runServer port server = withSocketsDo $ do
     -- Open the socket
     -- Calls close on the socket if openSocket errors
     -- Calls acceptLoop on the socket if success
-    E.bracket (openSocket addr) close acceptLoop 
+    E.bracket (openMySocket addr) close (acceptLoop server)
 
