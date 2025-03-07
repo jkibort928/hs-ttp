@@ -1,4 +1,6 @@
 # hs-ttp
+Note: Still in-development, not functional at the moment.
+
 Making a basic web server in Haskell utilizing as little hand-holding libraries as possible
 (Made this because an ignorant tiktoker said it wasn't possible and I thought it would be fun)
 
