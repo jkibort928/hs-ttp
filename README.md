@@ -19,7 +19,6 @@ Making a basic web server in Haskell utilizing as little hand-holding libraries 
 		-p:
 		--port:		Specify a port
 
-	
 	DIRECTORY:
 		The directory to be used as the root of the HTTP server.
 		All subfolders within this directory will be accessible to the server's clients.

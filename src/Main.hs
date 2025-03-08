@@ -19,7 +19,7 @@ instance Exception Error
 
 -- Help message to be displayed
 helpMessage :: String
-helpMessage = "hi\n"
+helpMessage = "hs-ttp [OPTIONS] <DIRECTORY>\n\nOPTIONS: \n\t-h:\n\t--help: \tDisplay this help message\n\n\t-p:\n\t--port:\t\tSpecify a port\n\nDIRECTORY:\n\tThe directory to be used as the root of the HTTP server.\n\tAll subfolders within this directory will be accessible to the server's clients.\n\nThis will create a basic HTTP server that has its root based in DIRECTORY.\nIt can access any subfolder and file within this directory.\nIt cannot access anything outside of this directory.\n\nThe server binds to the wildcard address, meaning it will be accessible on any ip interface.\n"
 
 defaultPort :: String
 defaultPort = "8080"
