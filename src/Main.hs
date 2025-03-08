@@ -70,7 +70,7 @@ main = do
 
         putStrLn ("port: " ++ port);
 
-        runServer serverFunc port
+        runServer port serverFunc 
             where
                 serverFunc sock cliAddr = do
                     putStrLn ("socket: " ++ show sock)

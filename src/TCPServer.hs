@@ -26,13 +26,14 @@ openMySocket addr = E.bracketOnError (openSocket addr) close setupSock
     where
         -- Setup the socket after it is opened and set it to listen
         setupSock sock =  do
-        
+            putStrLn ("setting up socket: " ++ show sock)
+            
             -- Basic socket setup options
             setSocketOption sock ReuseAddr 1
             withFdSocket sock setCloseOnExecIfNeeded
 
             -- Bind?? I thought this was already done when we used (openSocket addr) above??
-            --bind sock $ addrAddress addr
+            bind sock $ addrAddress addr
 
             -- Put the socket in listening mode
             -- Set a high listener queue size (larger than most systems' max)
@@ -46,7 +47,11 @@ openMySocket addr = E.bracketOnError (openSocket addr) close setupSock
 -- On fail it will close the connection (the connection is first value of the tuple returned by accept)
 -- On success, it will call handleConn on it
 acceptLoop :: (Socket -> SockAddr -> IO a) -> Socket -> IO ()
-acceptLoop server sock = forever $ E.bracketOnError (accept sock) (close . fst) handleConn
+acceptLoop server sock = forever $ do
+    putStrLn ("acceptloop socket: " ++ show sock)
+    
+    E.bracketOnError (accept sock) (close . fst) handleConn
+
     where
         -- Handle each connection, spawning a thread
         -- We want to return nothing so we use void to discard the threadId from forkFinally
@@ -54,14 +59,20 @@ acceptLoop server sock = forever $ E.bracketOnError (accept sock) (close . fst) 
         -- We use const because forkFinally expects a function,
         --   but we don't want to take an argument when we gracefully close.
         -- Const just "eats" an argument essentially
-        handleConn (conn, peer) = void $ forkFinally (server conn peer) (const $ gracefulClose conn 5000)
+        handleConn (conn, peer) = do
+            putStrLn ("handling: " ++ show conn ++ "\npeer: " ++ show peer)
+            forkFinally (server conn peer) (const $ gracefulClose conn 5000)
 
 -- Runs the server on the given port, using server as the main function to run for each connection
-runServer :: (Socket -> SockAddr -> IO a) -> ServiceName -> IO ()
-runServer server port = withSocketsDo $ do
+runServer :: ServiceName -> (Socket -> SockAddr -> IO a) -> IO ()
+runServer port server = withSocketsDo $ do
+
+    putStrLn "starting server"
 
     -- Resolve your address
     addr <- resolveSelf port
+
+    putStrLn ("addr: " ++ show addr)
     
     -- Open the socket
     -- Calls close on the socket if openSocket errors
