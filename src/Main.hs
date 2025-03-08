@@ -33,12 +33,14 @@ parsePort flags flagArgs lflags lflagArgs = case helper flags flagArgs of
     result  | result == defaultPort -> helper lflags lflagArgs -- Check longflags if short flags return default
             | otherwise             -> result -- Default
     where
-        -- Loop through first list until you find an argFlag, then match it to the first possible flagArg
+        -- Pop a flag arg off the "stack" when you encounter an argflag
+        -- Keep it if it's the flag we want
         helper [] _             = defaultPort
         helper _ []             = defaultPort
         helper (f:fs) (fa:fas) 
-            | f == "p" || f == "port"       = fa
-            | otherwise                     = helper fs (fa:fas)
+            | f == "p" || f == "port"       = fa -- pop the one we want and return it
+            | isArgFlag f                   = helper fs fas -- arg flag, pop and continue
+            | otherwise                     = helper fs (fa:fas) -- Not an arg flag, don't pop, continue
 
 -- Main
 main :: IO ()
@@ -56,6 +58,8 @@ main = do
         -- Extract the first argument of argv as the root directory path. Ignore other arguments.
         let (rootDir:arguments) = argv
 
+        -- Debug prints
+        {-
         putStrLn ("rootDir: " ++ rootDir);
         putStrLn ("arguments: " ++ concat arguments);
         putStrLn ("flags: " ++ concat flags);
@@ -64,30 +68,24 @@ main = do
         putStrLn ("longFlagArgs: " ++ concat longFlagArgs);
         
         putStrLn "----------------------";
-
+        -}
+        
         -- Get the port
         let port = parsePort flags flagArgs longFlags longFlagArgs
-
-        putStrLn ("port: " ++ port);
 
         runServer port serverFunc 
             where
                 serverFunc sock cliAddr = do
-                    putStrLn ("socket: " ++ show sock)
-                    putStrLn ("cliAddr: " ++ show cliAddr)
-        
-        -- Open the listener socket
+                    putStrLn ("Client connected from: " ++ show cliAddr)
 
+        -- My litte to-do list:
+        -- Open the listener socket DONE
         -- Recieve http request
-
         -- Decode http request
-
         -- Craft http response
             -- Read file in question
             -- Send error if not correct
             -- Maybe check if file is within the root directory
             -- Deal with ../ and such
-
         -- Send http response
-
-        -- Listen again
+        -- Listen again DONE
