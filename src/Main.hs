@@ -39,7 +39,7 @@ parsePort flags flagArgs lflags lflagArgs = case helper flags flagArgs of
         helper _ []             = defaultPort
         helper (f:fs) (fa:fas) 
             | f == "p" || f == "port"       = fa -- pop the one we want and return it
-            | isArgFlag f                   = helper fs fas -- arg flag, pop and continue
+            | isArgFlag f || isArgLFlag f   = helper fs fas -- arg flag, pop and continue
             | otherwise                     = helper fs (fa:fas) -- Not an arg flag, don't pop, continue
 
 -- Main
