@@ -26,13 +26,13 @@ openMySocket addr = E.bracketOnError (openSocket addr) close setupSock
     where
         -- Setup the socket after it is opened and set it to listen
         setupSock sock =  do
-            putStrLn ("setting up socket: " ++ show sock)
             
             -- Basic socket setup options
             setSocketOption sock ReuseAddr 1
             withFdSocket sock setCloseOnExecIfNeeded
 
-            -- Bind?? I thought this was already done when we used (openSocket addr) above??
+            -- Bind? I thought this was already done when we used (openSocket addr) above?
+            -- Nope, that's not how it works. You need this.
             bind sock $ addrAddress addr
 
             -- Put the socket in listening mode
@@ -48,7 +48,6 @@ openMySocket addr = E.bracketOnError (openSocket addr) close setupSock
 -- On success, it will call handleConn on it
 acceptLoop :: (Socket -> SockAddr -> IO a) -> Socket -> IO ()
 acceptLoop server sock = forever $ do
-    putStrLn ("acceptloop socket: " ++ show sock)
     
     E.bracketOnError (accept sock) (close . fst) handleConn
 
@@ -59,20 +58,16 @@ acceptLoop server sock = forever $ do
         -- We use const because forkFinally expects a function,
         --   but we don't want to take an argument when we gracefully close.
         -- Const just "eats" an argument essentially
-        handleConn (conn, peer) = do
-            putStrLn ("handling: " ++ show conn ++ "\npeer: " ++ show peer)
-            forkFinally (server conn peer) (const $ gracefulClose conn 5000)
+        handleConn (conn, peer) = void $ forkFinally (server conn peer) (const $ gracefulClose conn 5000)
 
 -- Runs the server on the given port, using server as the main function to run for each connection
 runServer :: ServiceName -> (Socket -> SockAddr -> IO a) -> IO ()
 runServer port server = withSocketsDo $ do
 
-    putStrLn "starting server"
+    putStrLn ("starting server on port: " ++ show port)
 
     -- Resolve your address
     addr <- resolveSelf port
-
-    putStrLn ("addr: " ++ show addr)
     
     -- Open the socket
     -- Calls close on the socket if openSocket errors
