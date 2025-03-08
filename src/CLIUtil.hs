@@ -1,19 +1,14 @@
 module CLIUtil (checkFlags, checkOpts, parseArgs, getOpt ) where
 
-possibleFlags :: [Char]
-possibleLFlags :: [String]
-possibleOpts :: [Char]
-possibleLOpts :: [String]
-
 -------- Configuration --------
 
 -- Define short flags
-possibleFlags = ['h']
+possibleFlags = ["h"]
 -- Define long flags
 possibleLFlags = ["help"]
 
 -- Define short options
-possibleOpts = ['p']
+possibleOpts = ["p"]
 -- Define long options
 possibleLOpts = ["port"]
 
@@ -25,18 +20,18 @@ removeDashes ('-':cs)   = removeDashes cs
 removeDashes str        = str
 
 -- Reverses each list within a 4tuple
-reverse5 :: ([a], [b], [c], [d]) -> ([a], [b], [c], [d])
-reverse5 (l1, l2, l3, l4) = (reverse l1, reverse l2, reverse l3, reverse l4)
+reverse4 :: ([a], [b], [c], [d]) -> ([a], [b], [c], [d])
+reverse4 (l1, l2, l3, l4) = (reverse l1, reverse l2, reverse l3, reverse l4)
 
 -- Splits a string in half at the first occurence of the character
-splitAtFirst :: Char -> String -> [String]
+splitAtFirst :: Char -> String -> (String, String)
 splitAtFirst delim str = helper delim str []
-where
-    helper d str newstr = case str of
-        (c:cs)
-            | c == d    -> [(reverse newstr), cs]
-            | otherwise -> splitAtFirst d cs (c:newstr)
-        [] -> [(reverse newstr)]
+    where
+        helper d str newstr = case str of
+            (c:cs)
+                | c == d    -> ((reverse newstr), cs)
+                | otherwise -> helper d cs (c:newstr)
+            [] -> ((reverse newstr), [])
 
 ----------- Helpers -----------
 
@@ -59,11 +54,15 @@ expandArgs :: [String] -> [String]
 expandArgs [] = []
 expandArgs (arg:args) = case arg of
         -- Stop expanding if you hit a double dash
-        "--"                -> (arg:args)
+        "--" -> (arg:args)
         -- Split options with equals signs
-        ('-':'-':longflag)  -> ('-':'-':(splitAtFirst '=' longflag)) ++ expandArgs args 
+        ('-':'-':longflag) -> case (splitAtFirst '=' longflag) of
+            (opt, [])       -> (('-':'-':opt):(expandArgs args))
+            (opt, optarg)   -> (('-':'-':opt):optarg:(expandArgs args))
         -- Decompose flags
-        ('-':flags)         -> (map (\c -> ['-', c]) flags) ++ expandArgs args
+        ('-':flags) -> (map (\c -> ['-', c]) flags) ++ expandArgs args
+        -- Expand nothing
+        a -> a:(expandArgs args)
     
 
 ---------- Exported -----------
@@ -71,13 +70,11 @@ expandArgs (arg:args) = case arg of
 -- Returns false if there is an invalid flag
 checkFlags :: [String] -> Bool
 checkFlags [] = True
-checkFlags (s:ss) = case s of
-    (f:[])      -> (f `elem` possibleFlags || f `elem` possibleLFlags) && checkFlags ss
-    otherwise   -> False
+checkFlags (s:ss) = (s `elem` possibleFlags || s `elem` possibleLFlags) && checkFlags ss
 
 -- Returns false if there is an invalid opt, or if the length of opts != length of optargs
 checkOpts :: [String] -> [String] -> Bool
-checkOpts opts optargs = (length opts != length optargs) && helper opts
+checkOpts opts optargs = (length opts == length optargs) && helper opts
     where
         -- Checks for validity
         helper []       = True
@@ -100,7 +97,7 @@ parseArgs x = reverse4 (parseRawArgs x) where
                     -- double dash signifies we should stop processing subsequent flags and treat them as normal strings
                     | doOpts && s1 == "--"  -> helper (s2:ss)   argv        flags                       opts                        optargs         False
                     -- Process opt (we do this first because opts and flags are the same to isFlag )
-                    | doOpts && isOpt s1    -> helper ss        argv        flags                       ((removeDashes s1):flags)   (s2:optargs)    doOpts
+                    | doOpts && isOpt s1    -> helper ss        argv        flags                       ((removeDashes s1):opts)    (s2:optargs)    doOpts
                     -- Process flag
                     | doOpts && isFlag s1   -> helper (s2:ss)   argv        ((removeDashes s1):flags)   opts                        optargs         doOpts
                     -- Process normal argument
@@ -118,5 +115,5 @@ getOpt :: [String] -> String -> [String] -> [String] -> String
 getOpt _ fallback [] _ = fallback
 getOpt _ fallback _ [] = fallback
 getOpt desiredOpts fallback (o:os) (oa:oas)
-    | o in desiredOpts  = oa
-    | otherwise         = helper os oas
+    | o `elem` desiredOpts  = oa
+    | otherwise             = getOpt desiredOpts fallback os oas
