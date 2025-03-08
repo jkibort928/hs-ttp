@@ -1,5 +1,10 @@
 module CLIUtil (checkFlags, checkOpts, parseArgs, getOpt ) where
 
+possibleFlags :: [String]
+possibleLFlags :: [String]
+possibleOpts :: [String]
+possibleLOpts :: [String]
+
 -------- Configuration --------
 
 -- Define short flags
