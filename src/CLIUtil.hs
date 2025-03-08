@@ -1,109 +1,122 @@
-module CLIUtil (checkFlags, checkLFlags, parseArgs, isArgFlag, isArgLFlag) where
+module CLIUtil (checkFlags, checkOpts, parseArgs, getOpt ) where
 
-import Control.Exception ( throw, Exception )
-
--- Error handling
-import Data.Typeable ( Typeable )
-newtype Error = Error {errMsg :: String}
-    deriving (Show, Typeable)
-instance Exception Error
-
--- Configuration
-
--- Define valid flags
 possibleFlags :: [Char]
-possibleFlags = ['h','p']
 possibleLFlags :: [String]
-possibleLFlags = ["help", "port"]
+possibleOpts :: [Char]
+possibleLOpts :: [String]
 
--- Specify which flags take an argument
-argFlags :: [Char]
-argFlags = ['p']
-argLFlags :: [String]
-argLFlags = ["port"]
+-------- Configuration --------
 
+-- Define short flags
+possibleFlags = ['h']
+-- Define long flags
+possibleLFlags = ["help"]
 
--- CLI Boilerplate code
+-- Define short options
+possibleOpts = ['p']
+-- Define long options
+possibleLOpts = ["port"]
 
--- Returns false if there is a flag that is not valid
-checkFlags :: [String] -> Bool
-checkFlags [] = True
-checkFlags (s:ss) = case s of
-    (f:[])      -> f `elem` possibleFlags && checkFlags ss
-    otherwise   -> False
+------- Generic Helpers -------
 
--- Returns false if there is a longflag that is not valid
-checkLFlags :: [String] -> Bool
-checkLFlags []          = True
-checkLFlags (lf:lfs)    = lf `elem` possibleLFlags && checkLFlags lfs
+-- Removes all dashes from the beginning of a string (strips flags and longflags alike)
+removeDashes :: String -> String
+removeDashes ('-':cs)   = removeDashes cs
+removeDashes str        = str
+
+-- Reverses each list within a 4tuple
+reverse5 :: ([a], [b], [c], [d]) -> ([a], [b], [c], [d])
+reverse5 (l1, l2, l3, l4) = (reverse l1, reverse l2, reverse l3, reverse l4)
+
+-- Splits a string in half at the first occurence of the character
+splitAtFirst :: Char -> String -> [String]
+splitAtFirst delim str = helper delim str []
+where
+    helper d str newstr = case str of
+        (c:cs)
+            | c == d    -> [(reverse newstr), cs]
+            | otherwise -> splitAtFirst d cs (c:newstr)
+        [] -> [(reverse newstr)]
+
+----------- Helpers -----------
 
 -- Returns true if the string is a flag
---  (starts with a dash, followed by any character that is not a dash)
 isFlag :: String -> Bool
 isFlag "--"     = False
 isFlag ('-':_)  = True
 isFlag _        = False
 
--- Returns true if and only if the string is a longflag (starts with two dashes)
-isLFlag :: String -> Bool
-isLFlag "--"            = False
-isLFlag ('-':'-':_) = True
-isLFlag _           = False
-
--- Returns true if the string is a flag that takes an argument
-isArgFlag :: String -> Bool
-isArgFlag "-"           = False
-isArgFlag ('-':c:[])    = c `elem` argFlags -- with dash
-isArgFlag (c:[])        = c `elem` argFlags -- without dash
-isArgFlag _             = False
-
 -- Returns true if the string is a longflag that takes an argument
-isArgLFlag :: String -> Bool
-isArgLFlag []   = False
-isArgLFlag str  = (removeDashes str) `elem` argLFlags
+isOpt :: String -> Bool
+isOpt ""   = False
+isOpt str  =  str' `elem` possibleOpts || str' `elem` possibleLOpts
+    where
+        str' = removeDashes str
 
--- Removes all dashes from the beginning of a string (strips a flag or longflag)
-removeDashes :: String -> String
-removeDashes ('-':cs)   = removeDashes cs
-removeDashes str    = str
 
--- Reverses each list within a 5tuple
-reverse5 :: ([a], [b], [c], [d], [e]) -> ([a], [b], [c], [d], [e])
-reverse5 (l1, l2, l3, l4, l5) = (reverse l1, reverse l2, reverse l3, reverse l4, reverse l5)
+-- Expands flags like -abc into -a -b -c, as well as --opt=val into --opt val
+expandArgs :: [String] -> [String]
+expandArgs [] = []
+expandArgs (arg:args) = case arg of
+        -- Stop expanding if you hit a double dash
+        "--"                -> (arg:args)
+        -- Split options with equals signs
+        ('-':'-':longflag)  -> ('-':'-':(splitAtFirst '=' longflag)) ++ expandArgs args 
+        -- Decompose flags
+        ('-':flags)         -> (map (\c -> ['-', c]) flags) ++ expandArgs args
+    
 
--- Parse a list of strings into a 5tuple of strings containing:
+---------- Exported -----------
+
+-- Returns false if there is an invalid flag
+checkFlags :: [String] -> Bool
+checkFlags [] = True
+checkFlags (s:ss) = case s of
+    (f:[])      -> (f `elem` possibleFlags || f `elem` possibleLFlags) && checkFlags ss
+    otherwise   -> False
+
+-- Returns false if there is an invalid opt, or if the length of opts != length of optargs
+checkOpts :: [String] -> [String] -> Bool
+checkOpts opts optargs = (length opts != length optargs) && helper opts
+    where
+        -- Checks for validity
+        helper []       = True
+        helper (o:os)   = (o `elem` possibleOpts || o `elem` possibleLOpts) && helper os
+        
+
+-- Parse a list of strings into a 4tuple of strings containing:
 --  List of arguments
 --  List of flags
---  List of longflags
---  List of flagArgs in order
---  List of lflagArgs in order
-parseArgs :: [String] -> ([String], [String], [String], [String], [String])
-parseArgs [] = throw (Error "Error: No arguments specified")
-parseArgs x = reverse5 (parseRawArgs x) where
+--  List of opts
+--  List of optargs
+parseArgs :: [String] -> ([String], [String], [String], [String])
+parseArgs x = reverse4 (parseRawArgs x) where
     -- Lists will be reversed!
-    parseRawArgs strs = helper strs [] [] [] [] [] True
+    parseRawArgs strs = helper (expandArgs strs) [] [] [] [] True
         where
-            helper :: [String] -> [String] -> [String] -> [String] -> [String] -> [String] -> Bool -> ([String], [String], [String], [String], [String])
-            helper args argv fs lfs fargs lfargs processFlags = case args of
+            helper :: [String] -> [String] -> [String] -> [String] -> [String] -> Bool -> ([String], [String], [String], [String])
+            helper args argv flags opts optargs doOpts = case args of
                 (s1:s2:ss)
                     -- double dash signifies we should stop processing subsequent flags and treat them as normal strings
-                    | s1 == "--"                                    -> helper (s2:ss)   argv        fs                      lfs                         fargs       lfargs      False
-                    -- Process long argflag s1 with argument s2
-                    | processFlags && isLFlag s1 && isArgLFlag s1   -> helper ss        argv        fs                      ((removeDashes s1):lfs)     fargs       (s2:lfargs) processFlags
-                    -- Process long non-arg flag s1
-                    | processFlags && isLFlag s1                    -> helper (s2:ss)   argv        fs                      ((removeDashes s1):lfs)     fargs       lfargs      processFlags
-                    -- Process short argflag s1 with argument s2
-                    | processFlags && isFlag s1 && isArgFlag s1     -> helper ss        argv        ((removeDashes s1):fs)  lfs                         (s2:fargs)  lfargs      processFlags
-                    -- Process short non-arg flag s1
-                    | processFlags && isFlag s1                     -> helper (s2:ss)   argv        ((removeDashes s1):fs)  lfs                         fargs       lfargs      processFlags
+                    | doOpts && s1 == "--"  -> helper (s2:ss)   argv        flags                       opts                        optargs         False
+                    -- Process opt (we do this first because opts and flags are the same to isFlag )
+                    | doOpts && isOpt s1    -> helper ss        argv        flags                       ((removeDashes s1):flags)   (s2:optargs)    doOpts
+                    -- Process flag
+                    | doOpts && isFlag s1   -> helper (s2:ss)   argv        ((removeDashes s1):flags)   opts                        optargs         doOpts
                     -- Process normal argument
-                    | otherwise                                     -> helper (s2:ss)   (s1:argv)   fs                      lfs                         fargs       lfargs      processFlags
+                    | otherwise             -> helper (s2:ss)   (s1:argv)   flags                       opts                        optargs         doOpts
                 (s:[])
-                    -- Note that arg flags in the last position will cause there to be an insufficient number of args in the arg list
-                    -- Process longflag
-                    | processFlags && isLFlag s                     ->                  (argv,      fs,                     ((removeDashes s):lfs),     fargs,      lfargs)
-                    -- Process shortflag
-                    | processFlags && isFlag s                      ->                  (argv,      ((removeDashes s):fs),  lfs,                        fargs,      lfargs)
+                    -- Note that opts in the last position will cause there to be an insufficient number of args in the arg list
+                    -- Process flag
+                    | doOpts && isFlag s    -> (argv,      ((removeDashes s):flags),    opts, optargs)
                     -- Process arg
-                    | otherwise                                     ->                  ((s:argv),  fs,                     lfs,                        fargs,      lfargs)
-                [] -> (argv, fs, lfs, fargs, lfargs)
+                    | otherwise             -> ((s:argv),  flags,                       opts, optargs)
+                [] -> (argv, flags, opts, optargs)
+
+-- Get the argument from the desired option(s), with a fallback value
+getOpt :: [String] -> String -> [String] -> [String] -> String
+getOpt _ fallback [] _ = fallback
+getOpt _ fallback _ [] = fallback
+getOpt desiredOpts fallback (o:os) (oa:oas)
+    | o in desiredOpts  = oa
+    | otherwise         = helper os oas

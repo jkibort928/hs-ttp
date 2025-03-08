@@ -8,7 +8,7 @@ import Control.Monad ( when, unless )
 import Text.Read (readMaybe)
 
 -- Custom imports
-import CLIUtil ( checkFlags, checkLFlags, parseArgs, isArgFlag, isArgLFlag )
+import CLIUtil ( checkFlags, checkOpts, parseArgs, getOpt )
 import TCPServer ( runServer )
 
 -- Error handling
@@ -24,54 +24,34 @@ helpMessage = "hi\n"
 defaultPort :: String
 defaultPort = "8080"
 
--- Get the port from the command line flags
--- Arguments are in the order: flags flagArgs longFlags longFlagArgs
--- Short flags are prioritized, but if it equals the default port, we will check longflags.
--- Invalid arguments are treated as default
-parsePort :: [String] -> [String] -> [String] -> [String] -> String
-parsePort flags flagArgs lflags lflagArgs = case helper flags flagArgs of
-    result  | result == defaultPort -> helper lflags lflagArgs -- Check longflags if short flags return default
-            | otherwise             -> result -- Default
-    where
-        -- Pop a flag arg off the "stack" when you encounter an argflag
-        -- Keep it if it's the flag we want
-        helper [] _             = defaultPort
-        helper _ []             = defaultPort
-        helper (f:fs) (fa:fas) 
-            | f == "p" || f == "port"       = fa -- pop the one we want and return it
-            | isArgFlag f || isArgLFlag f   = helper fs fas -- arg flag, pop and continue
-            | otherwise                     = helper fs (fa:fas) -- Not an arg flag, don't pop, continue
-
 -- Main
 main :: IO ()
 main = do
     args <- getArgs
-    let (argv, flags, longFlags, flagArgs, longFlagArgs) = parseArgs args
+    let (argv, flags, opts, optArgs) = parseArgs args
 
-    if ("h" `elem` flags) || ("help" `elem` longFlags) then do
+    if ("h" `elem` flags) || ("help" `elem` flags) then do
             putStrLn helpMessage
     else do
         when (null argv)                $ throw (Error "Error: No arguments specified")
         unless (checkFlags flags)       $ throw (Error "Error: Invalid flag")
-        unless (checkLFlags longFlags)  $ throw (Error "Error: Invalid long flag")
 
         -- Extract the first argument of argv as the root directory path. Ignore other arguments.
         let (rootDir:arguments) = argv
 
         -- Debug prints
-        {-
+        --{-
         putStrLn ("rootDir: " ++ rootDir);
         putStrLn ("arguments: " ++ concat arguments);
         putStrLn ("flags: " ++ concat flags);
-        putStrLn ("flagArgs: " ++ concat flagArgs);
-        putStrLn ("longFlags: " ++ concat longFlags);
-        putStrLn ("longFlagArgs: " ++ concat longFlagArgs);
+        putStrLn ("opts: " ++ concat opts);
+        putStrLn ("optArgs: " ++ concat optArgs);
         
         putStrLn "----------------------";
-        -}
+        ---}
         
         -- Get the port
-        let port = parsePort flags flagArgs longFlags longFlagArgs
+        let port = getOpt ["p", "port"] "8080" opts optArgs 
 
         runServer port serverFunc 
             where
