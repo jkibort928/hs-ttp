@@ -32,7 +32,7 @@ reverse4 (l1, l2, l3, l4) = (reverse l1, reverse l2, reverse l3, reverse l4)
 splitAtFirst :: Char -> String -> (String, String)
 splitAtFirst delim str = helper delim str []
     where
-        helper d str newstr = case str of
+        helper d s newstr = case s of
             (c:cs)
                 | c == d    -> ((reverse newstr), cs)
                 | otherwise -> helper d cs (c:newstr)

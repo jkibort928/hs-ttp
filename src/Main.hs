@@ -10,6 +10,7 @@ import Text.Read (readMaybe)
 -- Custom imports
 import CLIUtil ( checkFlags, checkOpts, parseArgs, getOpt )
 import TCPServer ( runServer )
+import SimpleHttp ( simpleHttpDecode )
 
 -- Error handling
 import Data.Typeable ( Typeable )
@@ -61,6 +62,11 @@ main = do
             where
                 serverFunc sock cliAddr = do
                     putStrLn ("Client connected from: " ++ show cliAddr)
+
+                    (method, filePath) <- simpleHttpDecode sock
+
+                    putStrLn ("Method: " ++ method)
+                    putStrLn ("Filepath: " ++ filePath)
 
         -- My litte to-do list:
         -- Open the listener socket DONE

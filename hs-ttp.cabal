@@ -15,7 +15,7 @@ common warnings
 executable hs-ttp
     import:           warnings
     main-is:          Main.hs
-    build-depends:    base, network
+    build-depends:    base, network, bytestring
     hs-source-dirs:   src
-    other-modules:    CLIUtil, TCPServer
+    other-modules:    CLIUtil, TCPServer, SimpleHttp
     default-language: Haskell2010
