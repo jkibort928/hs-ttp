@@ -7,7 +7,6 @@ license-file:    LICENSE
 author:          Jack Kibort
 maintainer:      jkibort928@gmail.com
 build-type:      Simple
-extra-doc-files: CHANGELOG.md
 
 common warnings
     ghc-options: -Wall
