@@ -69,24 +69,3 @@ main = do
 
                     let root = headSafe args
                     doHttp root sock
-
-                    
-
-        -- My litte to-do list:
-        -- Open the listener socket DONE
-        -- Recieve http request DONE
-        -- Decode http request CLOSE
-        -- Craft http response
-            -- Read file in question
-            -- Send error if not correct
-            -- Maybe check if file is within the root directory
-            -- Deal with ../ and such
-        -- Send http response
-        -- Listen again DONE
-
-        -- Implement directory page handling, for example, if a directory is requested in the uri,
-            -- it will try to retrieve index.html, and if it does not exist, it will generate a page based on 'ls'
-        -- Implement a flag that will disable this behavior, as well as one that disables the index.html behavior on root (handled as a special case)
-
-        -- if uri is a slash, check that first, then if it isnt just "/", you can remove the trailing slash
-        -- (dont worry about multiple slashes as they were condensed by simpleHttpDecode)
