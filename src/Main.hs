@@ -5,7 +5,6 @@ import System.IO
 import System.Environment (getArgs)
 import Control.Exception ( throw, Exception )
 import Control.Monad ( when, unless )
-import Text.Read (readMaybe)
 
 -- Custom imports
 import CLIUtil ( checkFlags, checkOpts, parseArgs, getOpt )
@@ -36,7 +35,7 @@ main = do
     else do
         
     
-        when (null argv)                $ throw (Error "Error: No arguments specified")
+        when (null argv) $ throw (Error "Error: No arguments specified")
 
         -- Extract the first argument of argv as the root directory path. Ignore other arguments.
         let (rootDir:arguments) = argv
@@ -56,7 +55,7 @@ main = do
         unless (checkOpts opts optArgs) $ throw (Error "Error: Invalid options")
 
         -- Get the port
-        let port = getOpt ["p", "port"] "8080" opts optArgs 
+        let port = getOpt ["p", "port"] defaultPort opts optArgs 
 
         runServer port serverFunc 
             where
@@ -79,3 +78,7 @@ main = do
             -- Deal with ../ and such
         -- Send http response
         -- Listen again DONE
+
+        -- Implement directory page handling, for example, if a directory is requested in the uri,
+            -- it will try to retrieve index.html, and if it does not exist, it will generate a page based on 'ls'
+        -- Implement a flag that will disable this behavior, as well as one that disables the index.html behavior on root (handled as a special case)
