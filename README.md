@@ -1,8 +1,6 @@
 # hs-ttp
 
-Note: Still in-development, not functional at the moment.
-
-Making a basic web server in Haskell utilizing the lower-level networking socket interface; Utilizing as few libraries as possible.
+Made a basic web server in Haskell utilizing the lower-level networking socket interface; Utilizing as few libraries as possible.
 
 This project was mainly created for the challenge and fun of it, as Haskell is a particularly
 enjoyable and unique language to develop in.
