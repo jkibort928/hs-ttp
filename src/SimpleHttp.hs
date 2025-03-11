@@ -241,3 +241,7 @@ doHttp :: String -> Socket -> IO ()
 doHttp root sock = do
     decoded <- httpDecode sock
     respond decoded root sock
+
+
+-- TODO:
+-- Handle URI with wacky characters percent encoding (spaces in the URI with %20, other characters idk)
