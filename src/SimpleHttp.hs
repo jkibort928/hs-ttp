@@ -1,14 +1,23 @@
-module SimpleHttp ( simpleHttpDecode ) where
+module SimpleHttp ( doHttp ) where
 
 -- Library Imports
+import Data.Int
+import Control.Monad ( unless )
+import Data.List.Split ( splitOn )
+import System.Directory ( doesFileExist, doesDirectoryExist, getFileSize, makeAbsolute, canonicalizePath, listDirectory )
+import System.Posix.Files ( fileAccess )
 import Network.Socket ( Socket )
 import Network.Socket.ByteString ( recv, sendAll )
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Char8 as BSC ( pack, unpack )
-import Control.Monad ( when )
+import qualified Data.ByteString.Char8 as BSLC ( toStrict )
 
 bufferSize :: Int
 bufferSize = 1024
+
+chunkSize :: Int64 -- ByteString.Lazy ( splitAt ) needs it to be this way 
+chunkSize = 4096
 
 maxHeaderLength :: Int
 maxHeaderLength = 16384
@@ -23,7 +32,7 @@ supportedMethods = ["GET", "HEAD"]
 send400 :: Socket -> IO ()
 send400 sock = sendAll sock $ BSC.pack "HTTP/1.1 400 Bad Request\r\n\r\n"
 
--- File is not readable?
+-- File is not readable or is outside the server root
 send403 :: Socket -> IO ()
 send403 sock = sendAll sock $ BSC.pack "HTTP/1.1 403 Forbidden\r\n\r\n"
 
@@ -39,6 +48,12 @@ send501 sock = sendAll sock $ BSC.pack "HTTP/1.1 501 Not Implemented\r\n\r\n"
 send505 :: Socket -> IO ()
 send505 sock = sendAll sock $ BSC.pack "HTTP/1.1 505 HTTP Version Not Supported\r\n\r\n"
 
+------ Generic Helpers --------
+
+-- Tail but it can handle null
+tailSafe :: [a] -> [a]
+tailSafe [] = []
+tailSafe xs = tail xs
 
 ---------- Helpers ------------
 
@@ -73,46 +88,12 @@ readRequest sock = getHeaders BS.empty 0
         hasHeaderEnd :: BS.ByteString -> Bool
         hasHeaderEnd buf = BS.isInfixOf (BSC.pack "\r\n\r\n") buf
 
--- Tail but it can handle null
-tailSafe :: [a] -> [a]
-tailSafe [] = []
-tailSafe xs = tail xs
 
--- Breaks up the request line by spaces into a triple
-unpackReqLine :: String -> (String, String, String)
-unpackReqLine str = (fst split1, fst split2, tailSafe $ snd split2)
-    where 
-        split1 = break (' '==) str
-        split2 = break (' '==) (tailSafe $ snd split1)
-
--- Checks if the string begins with a /
-checkHeadSlash :: String -> Bool
-checkHeadSlash str = case str of
-    (c:cs)  -> c == '/'
-    []      -> False
-
--- Takes any number of consecutive slashes and replaces them with a single slash
-condenseSlashes :: String -> String
-condenseSlashes str = helper str []
-    where
-        helper str' res = case str' of
-            ('/':'/':cs)    -> helper ('/':cs)   res
-            (c:cs)          -> helper cs         (c:res)
-            []              -> reverse res
     
-        
--- Ensures no "naughtiness" in the unix filepath 
--- Prevents backtracking, and other inappropriate actions that might compromise security
--- Placeholder implementation
-sanitizePath :: String -> String
-sanitizePath path = path
-
----------- Exported -----------
-
 -- Returns (method, filepath)
 -- Empty method string signifies an error has already been sent to the client
-simpleHttpDecode :: Socket -> IO (String, String)
-simpleHttpDecode sock = do
+httpDecode :: Socket -> IO (String, String)
+httpDecode sock = do
 
     -- Recieve the request
     request <- readRequest sock
@@ -142,11 +123,121 @@ simpleHttpDecode sock = do
         return ("", "")
     else do
         -- So far so good, condense slashes and hand it off
-        return (method, condenseSlashes rawUri)
+        return (method, rawUri)
 
+    where
+        -- Breaks up the request line by spaces into a triple
+        unpackReqLine :: String -> (String, String, String)
+        unpackReqLine str = (fst split1, fst split2, tailSafe $ snd split2)
+            where 
+                split1 = break (' '==) str
+                split2 = break (' '==) (tailSafe $ snd split1)
+    
+        -- Checks if the string begins with a /
+        checkHeadSlash :: String -> Bool
+        checkHeadSlash str = case str of
+            (c:_)  -> c == '/'
+            []      -> False
         
--- if target is a directory you return index.html of that directory, if no exist then 404
---if no index.html, generate one using 'ls' and make an html page that lets you navigate the files and folders
 
--- 403 forbidden if the pat escapes the root directory (maybe handle it in another function?)
+-- Sends the requested file, crafting the HTTP request
+sendFile :: Bool -> String -> Socket -> IO ()
+sendFile isHead filePath sock = do
 
+    hasAccess <- fileAccess filePath True False False
+
+    -- Check file access 
+    if not hasAccess then do
+        -- Send 403 forbidden, cannot read file
+        send403 sock
+        return ()
+    else do
+
+        canonPath <- canonicalizePath filePath
+    
+        -- Resolve symlinks for the true size of the file
+        fileSize <- getFileSize (canonPath)
+
+        let header = BSC.pack ("HTTP/1.1 200 OK\nContent-Length: " ++ (show fileSize) ++ "\r\n\r\n")
+        sendAll sock header
+
+        if isHead then do
+            return ()
+        else do
+            -- Read the file lazily
+            fileContents <- BSL.readFile filePath
+            -- Send in chunks over the socket
+            sendChunks sock fileContents
+    where
+        sendChunks :: Socket -> BSL.ByteString -> IO ()
+        sendChunks sock' content = do
+            let (chunk, rest) = BSL.splitAt chunkSize content -- Split the content into chunkSize sized chunks
+            unless (BSL.null chunk) $ do -- Stop if we ran out
+                sendAll sock' (BSLC.toStrict chunk) -- Convert the chunk to strict and send it
+                sendChunks sock' rest -- Send the rest
+        
+-- Sends the requested file to the client over http (or just its length if method is HEAD)
+respond :: (String, String) -> String -> Socket -> IO ()
+respond (method, filePath) root sock = do
+
+    if method == "" then do
+        return ()
+    else do
+
+        let isHead = method == "HEAD"
+
+        if (willEscapeRoot filePath) then do
+            -- Send 403 forbidden if the path escapes the server root
+            send403 sock
+            return ()
+        else do
+            -- File is within server root dir
+            
+            absRoot <- makeAbsolute root
+            let absFilePath = absRoot ++ ('/':filePath)
+            
+            theFileExists <- doesFileExist absFilePath
+            if (theFileExists) then do
+                -- File exists, send it
+                sendFile isHead absFilePath sock
+                return ()
+            else do
+                -- File doesn't exist, check if directory
+                theDirExists <- doesDirectoryExist absFilePath
+                if (theDirExists) then do
+                    -- Directory exists, check for index.html
+                    let indexFilePath = absFilePath ++ "/index.html"
+                    indexExists <- doesFileExist indexFilePath
+                    if (indexExists) then do
+                        -- Index exists, send it
+                        sendFile isHead indexFilePath sock
+                        return ()
+                    else do
+                        -- Directory exists, but has no index
+                        -- TODO: Implement a generated page based off getDirectoryContents (use Data.List sort on it)
+                        send404 sock
+                        return ()
+                else do
+                    -- Neither directory nor file exist
+                    send404 sock
+                    return ()
+    where
+        -- Checks if the path will escape the root directory
+        willEscapeRoot :: String -> Bool
+        willEscapeRoot path = helper (splitOn "/" path) 0
+            where
+                helper :: [String] -> Integer -> Bool
+                helper (x:xs) depth
+                    | depth < 0             = True -- If it escapes at any time, return true
+                    | x == ".."             = helper xs (depth - 1)
+                    | x == "." || x == ""   = helper xs depth
+                    | otherwise             = helper xs (depth + 1)
+                helper [] depth = depth < 0
+            
+
+---------- Exported -----------
+
+doHttp :: String -> Socket -> IO ()
+doHttp root sock = do
+    decoded <- httpDecode sock
+    respond decoded root sock

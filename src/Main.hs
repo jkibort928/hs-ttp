@@ -1,15 +1,14 @@
 module Main (main) where
 
 -- Library imports
-import System.IO
-import System.Environment (getArgs)
+import System.Environment ( getArgs )
 import Control.Exception ( throw, Exception )
 import Control.Monad ( when, unless )
 
 -- Custom imports
 import CLIUtil ( checkFlags, checkOpts, parseArgs, getOpt )
 import TCPServer ( runServer )
-import SimpleHttp ( simpleHttpDecode )
+import SimpleHttp ( doHttp )
 
 -- Error handling
 import Data.Typeable ( Typeable )
@@ -23,6 +22,11 @@ helpMessage = "hs-ttp [OPTIONS] <DIRECTORY>\n\nOPTIONS: \n\t-h:\n\t--help: \tDis
 
 defaultPort :: String
 defaultPort = "8080"
+
+-- Helpers
+headSafe :: [String] -> String
+headSafe [] = []
+headSafe (str:_) = str
 
 -- Main
 main :: IO ()
@@ -57,22 +61,21 @@ main = do
         -- Get the port
         let port = getOpt ["p", "port"] defaultPort opts optArgs 
 
-        runServer port serverFunc 
+        runServer [rootDir] port serverFunc 
             where
-                serverFunc sock cliAddr = do
+                serverFunc args sock cliAddr = do
+                    putStrLn ("Server args: " ++ show args)
                     putStrLn ("Client connected from: " ++ show cliAddr)
 
-                    (method, filePath) <- simpleHttpDecode sock
-
-                    putStrLn ("Method: " ++ method)
-                    putStrLn ("Filepath: " ++ filePath)
+                    let root = headSafe args
+                    doHttp root sock
 
                     
 
         -- My litte to-do list:
         -- Open the listener socket DONE
-        -- Recieve http request
-        -- Decode http request
+        -- Recieve http request DONE
+        -- Decode http request CLOSE
         -- Craft http response
             -- Read file in question
             -- Send error if not correct

@@ -46,8 +46,8 @@ openMySocket addr = E.bracketOnError (openSocket addr) close setupSock
 -- Forever calls "accept sock"
 -- On fail it will close the connection (the connection is first value of the tuple returned by accept)
 -- On success, it will call handleConn on it
-acceptLoop :: (Socket -> SockAddr -> IO a) -> Socket -> IO ()
-acceptLoop server sock = forever $ do
+acceptLoop :: ([String] -> Socket -> SockAddr -> IO a) -> [String] -> Socket -> IO ()
+acceptLoop server args sock = forever $ do
     
     E.bracketOnError (accept sock) (close . fst) handleConn
 
@@ -58,11 +58,11 @@ acceptLoop server sock = forever $ do
         -- We use const because forkFinally expects a function,
         --   but we don't want to take an argument when we gracefully close.
         -- Const just "eats" an argument essentially
-        handleConn (conn, peer) = void $ forkFinally (server conn peer) (const $ gracefulClose conn 5000)
+        handleConn (conn, peer) = void $ forkFinally (server args conn peer) (const $ gracefulClose conn 5000)
 
 -- Runs the server on the given port, using server as the main function to run for each connection
-runServer :: ServiceName -> (Socket -> SockAddr -> IO a) -> IO ()
-runServer port server = withSocketsDo $ do
+runServer :: [String] -> ServiceName -> ([String] -> Socket -> SockAddr -> IO a) -> IO ()
+runServer args port server = withSocketsDo $ do
 
     putStrLn ("starting server on port: " ++ show port)
 
@@ -72,5 +72,5 @@ runServer port server = withSocketsDo $ do
     -- Open the socket
     -- Calls close on the socket if openSocket errors
     -- Calls acceptLoop on the socket if success
-    E.bracket (openMySocket addr) close (acceptLoop server)
+    E.bracket (openMySocket addr) close (acceptLoop server args)
 
