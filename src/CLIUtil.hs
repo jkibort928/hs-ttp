@@ -1,5 +1,7 @@
 module CLIUtil (checkFlags, checkOpts, parseArgs, getOpt ) where
 
+import Data.Text ( toLower )
+
 possibleFlags :: [String]
 possibleLFlags :: [String]
 possibleOpts :: [String]
@@ -28,6 +30,9 @@ removeDashes str        = str
 reverse4 :: ([a], [b], [c], [d]) -> ([a], [b], [c], [d])
 reverse4 (l1, l2, l3, l4) = (reverse l1, reverse l2, reverse l3, reverse l4)
 
+strToLower :: String -> String
+strToLower = map toLower
+
 -- Splits a string in half at the first occurence of the character
 splitAtFirst :: Char -> String -> (String, String)
 splitAtFirst delim str = helper delim str []
@@ -55,13 +60,14 @@ isOpt str  =  str' `elem` possibleOpts || str' `elem` possibleLOpts
 
 
 -- Expands flags like -abc into -a -b -c, as well as --opt=val into --opt val
+-- Also converts long flags and long opts into lowercase
 expandArgs :: [String] -> [String]
 expandArgs [] = []
 expandArgs (arg:args) = case arg of
         -- Stop expanding if you hit a double dash
         "--" -> (arg:args)
         -- Split options with equals signs
-        ('-':'-':longflag) -> case (splitAtFirst '=' longflag) of
+        ('-':'-':longflag) -> case (splitAtFirst '=' (strToLower longflag)) of
             (opt, [])       -> (('-':'-':opt):(expandArgs args))
             (opt, optarg)   -> (('-':'-':opt):optarg:(expandArgs args))
         -- Decompose flags
