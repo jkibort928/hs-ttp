@@ -1,6 +1,6 @@
 module CLIUtil (checkFlags, checkOpts, parseArgs, getOpt ) where
 
-import Data.Text ( toLower )
+import Data.Char ( chr, ord )
 
 possibleFlags :: [String]
 possibleLFlags :: [String]
@@ -30,6 +30,13 @@ removeDashes str        = str
 reverse4 :: ([a], [b], [c], [d]) -> ([a], [b], [c], [d])
 reverse4 (l1, l2, l3, l4) = (reverse l1, reverse l2, reverse l3, reverse l4)
 
+-- Converts a char to lowercase
+toLower :: Char -> Char
+toLower c
+    | ord c >= ord 'A' && ord c <= ord 'Z' = chr $ (ord c) - ( (ord 'A') - (ord 'a') )
+    | otherwise = c
+
+-- Converts a string to lowercase
 strToLower :: String -> String
 strToLower = map toLower
 
