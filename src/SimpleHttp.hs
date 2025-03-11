@@ -5,12 +5,17 @@ import Network.Socket ( Socket )
 import Network.Socket.ByteString ( recv, sendAll )
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC ( pack, unpack )
+import Control.Monad ( when )
 
 bufferSize :: Int
 bufferSize = 1024
 
 maxHeaderLength :: Int
 maxHeaderLength = 16384
+
+------- Configuration ---------
+supportedMethods :: [String]
+supportedMethods = ["GET", "HEAD"]
 
 --- HTTP Error Status Codes ---
 
@@ -30,10 +35,14 @@ send404 sock = sendAll sock $ BSC.pack "HTTP/1.1 404 Not Found\r\n\r\n"
 send501 :: Socket -> IO ()
 send501 sock = sendAll sock $ BSC.pack "HTTP/1.1 501 Not Implemented\r\n\r\n"
 
+-- Invalid version
+send505 :: Socket -> IO ()
+send505 sock = sendAll sock $ BSC.pack "HTTP/1.1 505 HTTP Version Not Supported\r\n\r\n"
+
+
 ---------- Helpers ------------
 
 -- Stops reading once it sees \r\n\r\n, or EOF
--- I have no idea how to avoid this nesting
 readRequest :: Socket -> IO BS.ByteString
 readRequest sock = getHeaders BS.empty 0
     where
@@ -41,23 +50,24 @@ readRequest sock = getHeaders BS.empty 0
         getHeaders buff bytesRead = do
             chunk <- recv sock bufferSize
 
-            -- Force a 400 bad request if length exceeded
             let newBytesRead = bytesRead + BS.length chunk
-            if newBytesRead > maxHeaderLength
-                then return BS.empty
-
+            if newBytesRead > maxHeaderLength then
+                -- Force a 400 bad request if length exceeded
+                return BS.empty
+            else if BS.null chunk then
                 -- EOF, return what we have
-                else if BS.null chunk
-                    then return buff
-                    else do
-                        -- Append new chunk to buffer
-                        let newBuffer = buff `BS.append` chunk
-                        -- Check for \r\n\r\n
-                        if hasHeaderEnd newBuffer
-                            -- Return the final buffer, not caring if more data is after header
-                            then return newBuffer
-                            -- Continue reading the header
-                            else getHeaders newBuffer newBytesRead
+                return buff
+            else do
+                -- Append new chunk to buffer
+                let newBuffer = buff `BS.append` chunk
+                
+                -- Check for \r\n\r\n
+                if hasHeaderEnd newBuffer then
+                    -- Return the final buffer, not caring if more data is after header
+                    return newBuffer    
+                else
+                    -- Continue reading the header
+                    getHeaders newBuffer newBytesRead
 
         -- Function to check if \r\n\r\n is in the buffer
         hasHeaderEnd :: BS.ByteString -> Bool
@@ -75,6 +85,22 @@ unpackReqLine str = (fst split1, fst split2, tailSafe $ snd split2)
         split1 = break (' '==) str
         split2 = break (' '==) (tailSafe $ snd split1)
 
+-- Checks if the string begins with a /
+checkHeadSlash :: String -> Bool
+checkHeadSlash str = case str of
+    (c:cs)  -> c == '/'
+    []      -> False
+
+-- Takes any number of consecutive slashes and replaces them with a single slash
+condenseSlashes :: String -> String
+condenseSlashes str = helper str []
+    where
+        helper str' res = case str' of
+            ('/':'/':cs)    -> helper ('/':cs)   res
+            (c:cs)          -> helper cs         (c:res)
+            []              -> reverse res
+    
+        
 -- Ensures no "naughtiness" in the unix filepath 
 -- Prevents backtracking, and other inappropriate actions that might compromise security
 -- Placeholder implementation
@@ -84,8 +110,10 @@ sanitizePath path = path
 ---------- Exported -----------
 
 -- Returns (method, filepath)
+-- Empty method string signifies an error has already been sent to the client
 simpleHttpDecode :: Socket -> IO (String, String)
 simpleHttpDecode sock = do
+
     -- Recieve the request
     request <- readRequest sock
     putStrLn ("FULL REQUEST:\n" ++ show request)
@@ -100,14 +128,25 @@ simpleHttpDecode sock = do
             
     putStrLn ("method: " ++ method ++ "\nrawUri: " ++ rawUri ++ "\nhttpVer: " ++ httpVer)
 
-    -- method only GET or HEAD
+    if not (checkHeadSlash rawUri) then do
+        -- No leading slash, malformed
+        send400 sock
+        return ("", "")
+    else if (httpVer /= "HTTP/1.1" && httpVer /= "HTTP/1.0") then do
+        -- Unsupported HTTP version
+        send505 sock
+        return ("", "")
+    else if not (method `elem` supportedMethods) then do
+        -- Unsupported method
+        send501 sock
+        return ("", "")
+    else do
+        -- So far so good, condense slashes and hand it off
+        return (method, condenseSlashes rawUri)
 
-    -- URI requires leading slash, ignores trailing slash,
-    --and if target is a directory you return index.html of that directory, if no exist then 404
-    --if no index.html, generate one using 'ls' and make an html page that lets you navigate the files and folders
+        
+-- if target is a directory you return index.html of that directory, if no exist then 404
+--if no index.html, generate one using 'ls' and make an html page that lets you navigate the files and folders
 
-    -- version check 1.1 or 1.0 works
-    
-    send501 sock
+-- 403 forbidden if the pat escapes the root directory (maybe handle it in another function?)
 
-    return ("", "")
