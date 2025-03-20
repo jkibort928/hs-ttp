@@ -195,30 +195,41 @@ respond (method, filePath) root sock = do
             
             absRoot <- makeAbsolute root
             let absFilePath = absRoot ++ ('/':filePath)
+
+            putStrLn absFilePath
             
             theFileExists <- doesFileExist absFilePath
             if (theFileExists) then do
                 -- File exists, send it
+                putStrLn "Exists, sending..."
                 sendFile isHead absFilePath sock
                 return ()
             else do
                 -- File doesn't exist, check if directory
+                putStrLn "Doesn't exist, checking if dir..."
                 theDirExists <- doesDirectoryExist absFilePath
                 if (theDirExists) then do
                     -- Directory exists, check for index.html
+                    putStrLn "Dir exists, checking for index..."
                     let indexFilePath = absFilePath ++ "/index.html"
                     indexExists <- doesFileExist indexFilePath
                     if (indexExists) then do
                         -- Index exists, send it
+                        putStrLn "Index exists"
                         sendFile isHead indexFilePath sock
                         return ()
                     else do
                         -- Directory exists, but has no index
+                        putStrLn "Dir exists, index does not, sending generated page"
                         -- TODO: Implement a generated page based off getDirectoryContents (use Data.List sort on it)
+                        lsList <- listDirectory absFilePath
+                        --sendAll sock $ BSC.pack $ (concat lsList)
+                        putStrLn $ show (concat lsList)
                         send404 sock
                         return ()
                 else do
                     -- Neither directory nor file exist
+                    putStrLn "Neither dir nor file exists"
                     send404 sock
                     return ()
     where
@@ -245,3 +256,4 @@ doHttp root sock = do
 
 -- TODO:
 -- Handle URI with wacky characters percent encoding (spaces in the URI with %20, other characters idk)
+-- Basically, decode utf-8 percent encoding in the URI, and make sure you can access files with characters like ü in it
