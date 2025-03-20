@@ -1,4 +1,4 @@
-module CLIUtil (checkFlags, checkOpts, parseArgs, getOpt ) where
+module CLIUtil ( checkFlags, checkOpts, parseArgs, getOpt ) where
 
 import Data.Char ( chr, ord )
 
