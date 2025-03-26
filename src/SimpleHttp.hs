@@ -3,6 +3,7 @@ module SimpleHttp ( doHttp ) where
 -- Library Imports
 import Data.Int
 import Data.Char ( isControl )
+import Data.List ( sort )
 import Data.List.Split ( splitOn )
 import Control.Monad ( unless )
 import System.Directory ( doesFileExist, doesDirectoryExist, getFileSize, makeAbsolute, canonicalizePath, listDirectory )
@@ -155,9 +156,8 @@ sendFile isHead filePath sock = do
         return ()
     else do
 
-        canonPath <- canonicalizePath filePath
-    
         -- Resolve symlinks for the true size of the file
+        canonPath <- canonicalizePath filePath
         fileSize <- getFileSize (canonPath)
 
         -- TODO: Let the response be interchangeable so this function can be used to send 404.html?
@@ -178,6 +178,25 @@ sendFile isHead filePath sock = do
             unless (BSL.null chunk) $ do -- Stop if we ran out
                 sendAll sock' (BSLC.toStrict chunk) -- Convert the chunk to strict and send it
                 sendChunks sock' rest -- Send the rest
+
+-- Sends a generated HTML file representing the list of files
+-- Path is relative to the server root
+sendHtmlIndex :: String -> [String] -> Socket -> IO ()
+sendHtmlIndex path contents sock = do
+
+    let generatedPage = BSC.pack $ htmlBegin ++ htmlList ++ htmlEnd
+    let htmlSize = BS.length generatedPage
+    let header = BSC.pack ("HTTP/1.1 200 OK\nContent-Length: " ++ (show htmlSize) ++ "\r\n\r\n")
+    sendAll sock header
+    sendAll sock generatedPage
+
+    where
+        htmlBegin = "<!DOCTYPE html><html lang=\"en\"><head><meta http-equiv=\"content-type\" content=\"text/html; charset=UTF-8\"><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"X-UA-Compatible\" content=\"ie=edge\"><title>Index</title></head><body><h1>Index</h1>"
+        htmlList = concat $ map (\str -> "<a href=\"" ++ newPath ++ "/" ++ str ++ "\">" ++ str ++ "</a><br>") newContents
+        htmlEnd = "</body></html>\n"
+        (newPath, newContents)
+            | path == "/" = ("", contents) -- If root, double slash breaks the hyperlink, so replace it with null
+            | otherwise   = (path, ("..":contents)) -- If not root we want to include a ".." entry
         
 -- Perform proper checking before calling sendFile to send the file to the client over http
 respond :: (String, String) -> String -> Socket -> IO ()
@@ -224,11 +243,8 @@ respond (method, filePath) root sock = do
                     else do
                         -- Directory exists, but has no index
                         putStrLn "Dir exists, index does not, sending generated page"
-                        -- TODO: Implement a generated page based off getDirectoryContents (use Data.List sort on it)
-                        lsList <- listDirectory absFilePath
-                        --sendAll sock $ BSC.pack $ (concat lsList)
-                        putStrLn $ show (concat lsList)
-                        send404 sock
+                        dirList <- listDirectory absFilePath
+                        sendHtmlIndex filePath (sort dirList) sock -- NOT absolute path. We want relative to the server root.
                         return ()
                 else do
                     -- Neither directory nor file exist
