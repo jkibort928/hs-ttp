@@ -25,7 +25,7 @@ defaultPort = "8080"
 
 -- Helpers
 headSafe :: [String] -> String
-headSafe [] = []
+headSafe [] = ""
 headSafe (str:_) = str
 
 -- Main
