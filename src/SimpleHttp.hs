@@ -5,7 +5,7 @@ import Data.Int
 import Data.Char ( isControl )
 import Data.List ( sort )
 import Data.List.Split ( splitOn )
-import Control.Monad ( unless )
+import Control.Monad ( unless, mapM )
 import System.Directory ( doesFileExist, doesDirectoryExist, getFileSize, makeAbsolute, canonicalizePath, listDirectory )
 import System.Posix.Files ( fileAccess )
 import Network.Socket ( Socket )
@@ -192,11 +192,10 @@ sendHtmlIndex path contents sock = do
 
     where
         htmlBegin = "<!DOCTYPE html><html lang=\"en\"><head><meta http-equiv=\"content-type\" content=\"text/html; charset=UTF-8\"><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"X-UA-Compatible\" content=\"ie=edge\"><title>Index</title></head><body><h1>Index</h1>"
-        htmlList = concat $ map (\str -> "<a href=\"" ++ newPath ++ "/" ++ str ++ "\">" ++ str ++ "</a><br>") newContents
-        htmlEnd = "</body></html>\n"
-        (newPath, newContents)
-            | path == "/" = ("", contents) -- If root, double slash breaks the hyperlink, so replace it with null
-            | otherwise   = (path, ("..":contents)) -- If not root we want to include a ".." entry
+        htmlList = concat $ map (\str -> "<a href=\"" ++ path ++ str ++ "\">" ++ str ++ "</a><br>") newContents
+        htmlEnd = "</body></html>\n" 
+        -- If not root we want to include a "../" entry
+        newContents = if path == "/" then contents else ("../":contents)
         
 -- Perform proper checking before calling sendFile to send the file to the client over http
 respond :: (String, String) -> String -> Socket -> IO ()
@@ -244,7 +243,9 @@ respond (method, filePath) root sock = do
                         -- Directory exists, but has no index
                         putStrLn "Dir exists, index does not, sending generated page"
                         dirList <- listDirectory absFilePath
-                        sendHtmlIndex filePath (sort dirList) sock -- NOT absolute path. We want relative to the server root.
+                        dirList' <- mapM (dirSlash absFilePath) dirList
+                        
+                        sendHtmlIndex filePath (sort dirList') sock -- NOT absolute path as first arg. We want relative to the server root.
                         return ()
                 else do
                     -- Neither directory nor file exist
@@ -263,6 +264,12 @@ respond (method, filePath) root sock = do
                     | x == "." || x == ""   = helper xs depth
                     | otherwise             = helper xs (depth + 1)
                 helper [] depth = depth < 0
+                
+        -- Appends a / to the end of an item if it is a directory. The prePath should be the absolutepath to the directory that the item is in
+        dirSlash :: String -> String -> IO String
+        dirSlash prePath item = do
+            isDir <- doesDirectoryExist (prePath ++ "/" ++ item)
+            return (if isDir then item ++ "/" else item)
             
 
 ---------- Exported -----------
@@ -272,3 +279,4 @@ doHttp root sock = do
     decoded <- httpDecode sock
     respond decoded root sock
     
+-- TODO: Add functionality for a commandline switch to disable generated index pages. Will 404 if you try to access a directory instead.
