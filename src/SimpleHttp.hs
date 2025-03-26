@@ -158,6 +158,7 @@ sendFile isHead filePath sock = do
         -- Resolve symlinks for the true size of the file
         fileSize <- getFileSize (canonPath)
 
+        -- TODO: Let the response be interchangeable so this function can be used to send 404.html?
         let header = BSC.pack ("HTTP/1.1 200 OK\nContent-Length: " ++ (show fileSize) ++ "\r\n\r\n")
         sendAll sock header
 
@@ -176,7 +177,7 @@ sendFile isHead filePath sock = do
                 sendAll sock' (BSLC.toStrict chunk) -- Convert the chunk to strict and send it
                 sendChunks sock' rest -- Send the rest
         
--- Sends the requested file to the client over http (or just its length if method is HEAD)
+-- Perform proper checking before calling sendFile to send the file to the client over http
 respond :: (String, String) -> String -> Socket -> IO ()
 respond (method, filePath) root sock = do
 
