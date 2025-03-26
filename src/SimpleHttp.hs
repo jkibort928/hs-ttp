@@ -122,7 +122,7 @@ httpDecode sock = do
         send501 sock
         return ("", "")
     else do
-        -- So far so good, condense slashes and hand it off
+        -- So far so good
         return (method, rawUri)
 
     where
