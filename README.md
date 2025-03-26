@@ -19,7 +19,10 @@ enjoyable and unique language to develop in.
         --help:     Display this help message
     
         -p:
-        --port:        Specify a port
+        --port:     Specify a port
+
+        -<wip>:
+        --<wip>:    Disable auto-generated index pages for directories lacking index.html files
     
     DIRECTORY:
         The directory to be used as the root of the HTTP server.
@@ -28,5 +31,6 @@ enjoyable and unique language to develop in.
     This will create a basic HTTP server that has its root based in DIRECTORY.
     It can access any subfolder and file within this directory.
     It cannot access anything outside of this directory.
+    By default, the server will provide an auto-generated HTML index page for all directories lacking an index.html file.
     
     The server binds to the wildcard address, meaning it will be accessible on any ip interface.
