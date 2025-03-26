@@ -3,7 +3,7 @@ module Main (main) where
 -- Library imports
 import System.Environment ( getArgs )
 import Control.Exception ( throw, Exception )
-import Control.Monad ( when, unless )
+import Control.Monad ( unless )
 
 -- Custom imports
 import CLIUtil ( checkFlags, checkOpts, parseArgs, getOpt )
@@ -36,36 +36,36 @@ main = do
 
     if ("h" `elem` flags) || ("help" `elem` flags) then do
             putStrLn helpMessage
-    else do
-        
+    else
     
-        when (null argv) $ throw (Error "Error: No arguments specified")
+        case argv of
+            [] -> throw (Error "Error: No arguments specified")
+            
+            -- Extract the first argument of argv as the root directory path. Ignore other arguments.
+            (rootDir:arguments) -> do
 
-        -- Extract the first argument of argv as the root directory path. Ignore other arguments.
-        let (rootDir:arguments) = argv
+                -- Debug prints
+                --{-
+                putStrLn ("rootDir: " ++ rootDir);
+                putStrLn ("arguments: " ++ show arguments);
+                putStrLn ("flags: " ++ show flags);
+                putStrLn ("opts: " ++ show opts);
+                putStrLn ("optArgs: " ++ show optArgs);
+                
+                putStrLn "----------------------";
+                ---}
+                
+                unless (checkFlags flags)       $ throw (Error "Error: Invalid flag")
+                unless (checkOpts opts optArgs) $ throw (Error "Error: Invalid options")
 
-        -- Debug prints
-        --{-
-        putStrLn ("rootDir: " ++ rootDir);
-        putStrLn ("arguments: " ++ show arguments);
-        putStrLn ("flags: " ++ show flags);
-        putStrLn ("opts: " ++ show opts);
-        putStrLn ("optArgs: " ++ show optArgs);
-        
-        putStrLn "----------------------";
-        ---}
-        
-        unless (checkFlags flags)       $ throw (Error "Error: Invalid flag")
-        unless (checkOpts opts optArgs) $ throw (Error "Error: Invalid options")
+                -- Get the port
+                let port = getOpt ["p", "port"] defaultPort opts optArgs 
 
-        -- Get the port
-        let port = getOpt ["p", "port"] defaultPort opts optArgs 
+                runServer port serverFunc [rootDir]
+                    where
+                        serverFunc servArgs sock cliAddr = do
+                            putStrLn ("Server args: " ++ show servArgs)
+                            putStrLn ("Client connected from: " ++ show cliAddr)
 
-        runServer [rootDir] port serverFunc 
-            where
-                serverFunc args sock cliAddr = do
-                    putStrLn ("Server args: " ++ show args)
-                    putStrLn ("Client connected from: " ++ show cliAddr)
-
-                    let root = headSafe args
-                    doHttp root sock
+                            let root = headSafe servArgs
+                            doHttp root sock

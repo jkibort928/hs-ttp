@@ -61,8 +61,8 @@ acceptLoop server args sock = forever $ do
         handleConn (conn, peer) = void $ forkFinally (server args conn peer) (const $ gracefulClose conn 5000)
 
 -- Runs the server on the given port, using server as the main function to run for each connection
-runServer :: [String] -> ServiceName -> ([String] -> Socket -> SockAddr -> IO a) -> IO ()
-runServer args port server = withSocketsDo $ do
+runServer :: ServiceName -> ([String] -> Socket -> SockAddr -> IO a) -> [String] -> IO ()
+runServer port server args = withSocketsDo $ do
 
     putStrLn ("starting server on port: " ++ show port)
 
