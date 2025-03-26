@@ -2,12 +2,14 @@ module SimpleHttp ( doHttp ) where
 
 -- Library Imports
 import Data.Int
-import Control.Monad ( unless )
+import Data.Char ( isControl )
 import Data.List.Split ( splitOn )
+import Control.Monad ( unless )
 import System.Directory ( doesFileExist, doesDirectoryExist, getFileSize, makeAbsolute, canonicalizePath, listDirectory )
 import System.Posix.Files ( fileAccess )
 import Network.Socket ( Socket )
 import Network.Socket.ByteString ( recv, sendAll )
+import Network.URI ( unEscapeString )
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Char8 as BSC ( pack, unpack )
@@ -47,13 +49,6 @@ send501 sock = sendAll sock $ BSC.pack "HTTP/1.1 501 Not Implemented\r\n\r\n"
 -- Invalid version
 send505 :: Socket -> IO ()
 send505 sock = sendAll sock $ BSC.pack "HTTP/1.1 505 HTTP Version Not Supported\r\n\r\n"
-
------- Generic Helpers --------
-
--- Tail but it can handle null
-tailSafe :: [a] -> [a]
-tailSafe [] = []
-tailSafe xs = tail xs
 
 ---------- Helpers ------------
 
@@ -122,16 +117,23 @@ httpDecode sock = do
         send501 sock
         return ("", "")
     else do
-        -- So far so good
-        return (method, rawUri)
+        -- So far so good, decode percent encoding.
+        let unescaped = unEscapeString rawUri
+
+        -- Check for control characters
+        if ( any isControl unescaped ) then do
+            send400 sock
+            return ("", "")
+        else
+            return (method, unescaped)
 
     where
         -- Breaks up the request line by spaces into a triple
         unpackReqLine :: String -> (String, String, String)
-        unpackReqLine str = (fst split1, fst split2, tailSafe $ snd split2)
+        unpackReqLine str = (fst split1, fst split2, (drop 1) $ snd split2)
             where 
                 split1 = break (' '==) str
-                split2 = break (' '==) (tailSafe $ snd split1)
+                split2 = break (' '==) ((drop 1) $ snd split1)
     
         -- Checks if the string begins with a /
         checkHeadSlash :: String -> Bool
@@ -253,8 +255,4 @@ doHttp :: String -> Socket -> IO ()
 doHttp root sock = do
     decoded <- httpDecode sock
     respond decoded root sock
-
-
--- TODO:
--- Handle URI with wacky characters percent encoding (spaces in the URI with %20, other characters idk)
--- Basically, decode utf-8 percent encoding in the URI, and make sure you can access files with characters like ü in it
+    
