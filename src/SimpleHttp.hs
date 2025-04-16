@@ -8,7 +8,7 @@ import Data.List.Split ( splitOn )
 import Control.Monad ( unless, mapM )
 import System.Directory ( doesFileExist, doesDirectoryExist, getFileSize, makeAbsolute, canonicalizePath, listDirectory )
 import System.Posix.Files ( fileAccess )
-import Network.Socket ( Socket )
+import Network.Socket ( Socket, SockAddr )
 import Network.Socket.ByteString ( recv, sendAll )
 import Network.URI ( unEscapeString )
 import qualified Data.ByteString as BS
