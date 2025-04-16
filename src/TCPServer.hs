@@ -64,7 +64,7 @@ acceptLoop server args sock = forever $ do
 runServer :: ServiceName -> ([String] -> Socket -> SockAddr -> IO a) -> [String] -> IO ()
 runServer port server args = withSocketsDo $ do
 
-    putStrLn ("starting server on port: " ++ show port)
+    putStrLn ("Starting server on port: " ++ show port)
 
     -- Resolve your address
     addr <- resolveSelf port

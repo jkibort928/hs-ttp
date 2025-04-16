@@ -93,17 +93,17 @@ httpDecode sock = do
 
     -- Recieve the request
     request <- readRequest sock
-    putStrLn ("FULL REQUEST:\n" ++ show request)
-    putStrLn "----------------------------------"
+    --putStrLn ("FULL REQUEST:\n" ++ show request)
+    --putStrLn "----------------------------------"
     
     -- Decode the request line
     let reqLine = BSC.unpack $ fst $ BS.breakSubstring (BSC.pack "\r\n") request
-    putStrLn ("Request line: " ++ reqLine)
+    --putStrLn ("Request line: " ++ reqLine)
 
     -- Extract Method, URI, and HTTP Version
     let (method, rawUri, httpVer) = unpackReqLine reqLine
             
-    putStrLn ("method: " ++ method ++ "\nrawUri: " ++ rawUri ++ "\nhttpVer: " ++ httpVer)
+    --putStrLn ("method: " ++ method ++ "\nrawUri: " ++ rawUri ++ "\nhttpVer: " ++ httpVer)
 
     if not (checkHeadSlash rawUri) then do
         -- No leading slash, malformed
@@ -217,31 +217,31 @@ respond (method, filePath) root sock = do
             absRoot <- makeAbsolute root
             let absFilePath = absRoot ++ ('/':filePath)
 
-            putStrLn absFilePath
+            --putStrLn absFilePath
             
             theFileExists <- doesFileExist absFilePath
             if (theFileExists) then do
                 -- File exists, send it
-                putStrLn "Exists, sending..."
+                --putStrLn "Exists, sending..."
                 sendFile isHead absFilePath sock
                 return ()
             else do
                 -- File doesn't exist, check if directory
-                putStrLn "Doesn't exist, checking if dir..."
+                --putStrLn "Doesn't exist, checking if dir..."
                 theDirExists <- doesDirectoryExist absFilePath
                 if (theDirExists) then do
                     -- Directory exists, check for index.html
-                    putStrLn "Dir exists, checking for index..."
+                    --putStrLn "Dir exists, checking for index..."
                     let indexFilePath = absFilePath ++ "/index.html"
                     indexExists <- doesFileExist indexFilePath
                     if (indexExists) then do
                         -- Index exists, send it
-                        putStrLn "Index exists"
+                        --putStrLn "Index exists"
                         sendFile isHead indexFilePath sock
                         return ()
                     else do
                         -- Directory exists, but has no index
-                        putStrLn "Dir exists, index does not, sending generated page"
+                        --putStrLn "Dir exists, index does not, sending generated page"
                         dirList <- listDirectory absFilePath
                         dirList' <- mapM (dirSlash absFilePath) dirList
                         
@@ -249,7 +249,7 @@ respond (method, filePath) root sock = do
                         return ()
                 else do
                     -- Neither directory nor file exist
-                    putStrLn "Neither dir nor file exists"
+                    --putStrLn "Neither dir nor file exists"
                     send404 sock
                     return ()
     where
@@ -274,9 +274,11 @@ respond (method, filePath) root sock = do
 
 ---------- Exported -----------
 
-doHttp :: String -> Socket -> IO ()
-doHttp root sock = do
+doHttp :: String -> Socket -> SockAddr -> IO ()
+doHttp root sock cliAddr = do
     decoded <- httpDecode sock
+    -- Concise log
+    putStrLn (show cliAddr ++ ": " ++ fst decoded ++ " " ++ snd decoded)
     respond decoded root sock
     
 -- TODO: Add functionality for a commandline switch to disable generated index pages. Will 404 if you try to access a directory instead.
