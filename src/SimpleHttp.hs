@@ -292,3 +292,4 @@ doHttp root sock cliAddr = do
     
 -- TODO: Add functionality for a commandline switch to disable generated index pages. Will 404 if you try to access a directory instead.
 -- TODO: Add support for 404.html, maybe as built-in to the code and generated, or stored in root as a file.
+-- TODO: Ignore anything after a ? in the URI
