@@ -124,8 +124,12 @@ httpDecode sock = do
         send501 sock
         return ("", "")
     else do
-        -- So far so good, decode percent encoding.
-        let unescaped = unEscapeString rawUri
+        -- So far so good, disregard any queries because they are not utilized
+        -- (drop all text after a question mark)
+        let unqueried = takeWhile (\c -> c /= '?') rawUri
+
+        -- Decode percent encoding.
+        let unescaped = unEscapeString unqueried
 
         -- Check for control characters
         if ( any isControl unescaped ) then do
@@ -299,4 +303,3 @@ doHttp root sock cliAddr = do
     
 -- TODO: Add functionality for a commandline switch to disable generated index pages. Will 404 if you try to access a directory instead.
 -- TODO: Add support for 404.html, maybe as built-in to the code and generated, or stored in root as a file.
--- TODO: Ignore anything after a ? in the URI
