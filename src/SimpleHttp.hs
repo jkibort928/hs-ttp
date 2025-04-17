@@ -5,6 +5,7 @@ import Data.Int
 import Data.Char ( isControl )
 import Data.List ( sort )
 import Data.List.Split ( splitOn )
+import Data.Time
 import Control.Monad ( unless, mapM )
 import System.Directory ( doesFileExist, doesDirectoryExist, getFileSize, makeAbsolute, canonicalizePath, listDirectory )
 import System.Posix.Files ( fileAccess )
@@ -52,6 +53,11 @@ send505 :: Socket -> IO ()
 send505 sock = sendAll sock $ BSC.pack "HTTP/1.1 505 HTTP Version Not Supported\r\n\r\n"
 
 ---------- Helpers ------------
+
+-- Format as "YYYY-MM-DD HH:MM:SS"
+getTimeStamp :: IO String
+getTimeStamp = formatTime defaultTimeLocale "%F %T" <$> getZonedTime
+-- %F = %Y-%m-%d, %T = %H:%M:%S
 
 -- Stops reading once it sees \r\n\r\n, or EOF
 readRequest :: Socket -> IO BS.ByteString
@@ -277,8 +283,11 @@ respond (method, filePath) root sock = do
 doHttp :: String -> Socket -> SockAddr -> IO ()
 doHttp root sock cliAddr = do
     decoded <- httpDecode sock
+    
     -- Concise log
-    putStrLn (show cliAddr ++ ": " ++ fst decoded ++ " " ++ snd decoded)
+    timestamp <- getTimeStamp
+    putStrLn (timestamp ++ " " ++ show cliAddr ++ ": " ++ fst decoded ++ " " ++ snd decoded)
+    
     respond decoded root sock
     
 -- TODO: Add functionality for a commandline switch to disable generated index pages. Will 404 if you try to access a directory instead.
