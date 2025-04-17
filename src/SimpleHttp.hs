@@ -198,10 +198,17 @@ sendHtmlIndex path contents sock = do
 
     where
         htmlBegin = "<!DOCTYPE html><html lang=\"en\"><head><meta http-equiv=\"content-type\" content=\"text/html; charset=UTF-8\"><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"X-UA-Compatible\" content=\"ie=edge\"><title>Index</title></head><body><h1>Index</h1>"
-        htmlList = concat $ map (\str -> "<a href=\"" ++ path ++ "/" ++ str ++ "\">" ++ str ++ "</a><br>") newContents
+        htmlList = concatMap (collapseSlashes . (\str -> "<a href=\"" ++ path ++ "/" ++ str ++ "\">" ++ str ++ "</a><br>")) newContents
         htmlEnd = "</body></html>\n" 
-        -- If not root we want to include a "../" entry
+        -- If not root we want to prepend a "../" entry
         newContents = if path == "/" then contents else ("../":contents)
+        -- Html is sensitive to double slashes for some reason, so we collapse all consecutive slashes into one
+        collapseSlashes :: String -> String
+        collapseSlashes str = reverse (helper str [])
+            where
+                helper []           res = res
+                helper ('/':'/':cs) res = helper ('/':cs)   res
+                helper (c:cs)       res = helper cs         (c:res)
         
 -- Perform proper checking before calling sendFile to send the file to the client over http
 respond :: (String, String) -> String -> Socket -> IO ()
