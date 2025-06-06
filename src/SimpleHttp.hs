@@ -171,7 +171,7 @@ sendFile isHead filePath sock = do
         fileSize <- getFileSize (canonPath)
 
         -- TODO: Let the response be interchangeable so this function can be used to send 404.html?
-        let header = BSC.pack ("HTTP/1.1 200 OK\nContent-Length: " ++ (show fileSize) ++ "\r\n\r\n")
+        let header = BSC.pack ("HTTP/1.1 200 OK\r\nContent-Length: " ++ (show fileSize) ++ "\r\n\r\n")
         sendAll sock header
 
         if isHead then do
@@ -196,7 +196,7 @@ sendHtmlIndex path contents sock = do
 
     let generatedPage = BSC.pack $ htmlBegin ++ htmlList ++ htmlEnd
     let htmlSize = BS.length generatedPage
-    let header = BSC.pack ("HTTP/1.1 200 OK\nContent-Length: " ++ (show htmlSize) ++ "\r\n\r\n")
+    let header = BSC.pack ("HTTP/1.1 200 OK\r\nContent-Length: " ++ (show htmlSize) ++ "\r\n\r\n")
     sendAll sock header
     sendAll sock generatedPage
 
