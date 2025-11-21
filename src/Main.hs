@@ -44,7 +44,7 @@ main = do
             (rootDir:arguments) -> do
 
                 -- Debug prints
-                --{-
+                {-
                 putStrLn ("rootDir: " ++ rootDir);
                 putStrLn ("arguments: " ++ show arguments);
                 putStrLn ("flags: " ++ show flags);
@@ -52,7 +52,7 @@ main = do
                 putStrLn ("optArgs: " ++ show optArgs);
                 
                 putStrLn "----------------------";
-                ---}
+                -}
                 
                 unless (checkFlags flags)       $ throw (Error "Error: Invalid flag")
                 unless (checkOpts opts optArgs) $ throw (Error "Error: Invalid options")
@@ -63,8 +63,8 @@ main = do
                 runServer port serverFunc [rootDir]
                     where
                         serverFunc servArgs sock cliAddr = do
-                            putStrLn ("Server args: " ++ show servArgs)
-                            putStrLn ("Client connected from: " ++ show cliAddr)
+                            --putStrLn ("Server args: " ++ show servArgs)
+                            --putStrLn ("Client connected from: " ++ show cliAddr)
 
                             let root = headSafe servArgs
                             doHttp root sock cliAddr flags
