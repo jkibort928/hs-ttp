@@ -12,7 +12,7 @@ possibleLOpts :: [String]
 -- Define short flags
 possibleFlags = ["h"]
 -- Define long flags
-possibleLFlags = ["help"]
+possibleLFlags = ["help", "serve-dotfiles"]
 
 -- Define short options
 possibleOpts = ["p"]

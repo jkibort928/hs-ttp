@@ -6,7 +6,7 @@ import Data.Char ( isControl )
 import Data.List ( sort )
 import Data.List.Split ( splitOn )
 import Data.Time
-import Control.Monad ( unless, mapM )
+import Control.Monad ( unless )
 import System.Directory ( doesFileExist, doesDirectoryExist, getFileSize, makeAbsolute, canonicalizePath, listDirectory )
 import System.Posix.Files ( fileAccess )
 import Network.Socket ( Socket, SockAddr )
@@ -215,8 +215,8 @@ sendHtmlIndex path contents sock = do
                 helper (c:cs)       res = helper cs         (c:res)
         
 -- Perform proper checking before calling sendFile to send the file to the client over http
-respond :: (String, String) -> String -> Socket -> IO ()
-respond (method, filePath) root sock = do
+respond :: (String, String) -> String -> Socket -> [String] -> IO ()
+respond (method, filePath) root sock flags = do
 
     if method == "" then do
         return ()
@@ -224,7 +224,7 @@ respond (method, filePath) root sock = do
 
         let isHead = method == "HEAD"
 
-        if (willEscapeRoot filePath) then do
+        if (isPathForbidden filePath) then do
             -- Send 403 forbidden if the path escapes the server root
             send403 sock
             return ()
@@ -270,16 +270,17 @@ respond (method, filePath) root sock = do
                     send404 sock
                     return ()
     where
-        -- Checks if the path will escape the root directory
-        willEscapeRoot :: String -> Bool
-        willEscapeRoot path = helper (splitOn "/" path) 0
+        -- Checks if the path will escape the root directory, or contains hidden files (if not allowed)
+        isPathForbidden :: String -> Bool
+        isPathForbidden path = helper (splitOn "/" path) 0
             where
                 helper :: [String] -> Integer -> Bool
                 helper (x:xs) depth
-                    | depth < 0             = True -- If it escapes at any time, return true
-                    | x == ".."             = helper xs (depth - 1)
-                    | x == "." || x == ""   = helper xs depth
-                    | otherwise             = helper xs (depth + 1)
+                    | depth < 0                                     = True -- If it escapes at any time, return true
+                    | x == ".."                                     = helper xs (depth - 1)
+                    | x == "." || x == ""                           = helper xs depth
+                    | (head x) == '.' && not ("serve-dotfiles" `elem` flags) = True -- Prevent serving of dotfiles unless allowed by flags
+                    | otherwise                                     = helper xs (depth + 1)
                 helper [] depth = depth < 0
                 
         -- Appends a / to the end of an item if it is a directory. The prePath should be the absolutepath to the directory that the item is in
@@ -291,15 +292,15 @@ respond (method, filePath) root sock = do
 
 ---------- Exported -----------
 
-doHttp :: String -> Socket -> SockAddr -> IO ()
-doHttp root sock cliAddr = do
+doHttp :: String -> Socket -> SockAddr -> [String] -> IO ()
+doHttp root sock cliAddr flags = do
     decoded <- httpDecode sock
     
     -- Concise log
     timestamp <- getTimeStamp
     putStrLn (timestamp ++ " " ++ show cliAddr ++ ": " ++ fst decoded ++ " " ++ snd decoded)
     
-    respond decoded root sock
+    respond decoded root sock flags
     
 -- TODO: Add functionality for a commandline switch to disable generated index pages. Will 404 if you try to access a directory instead.
 -- TODO: Add support for 404.html, maybe as built-in to the code and generated, or stored in root as a file.

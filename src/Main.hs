@@ -18,8 +18,7 @@ instance Exception Error
 
 -- Help message to be displayed
 helpMessage :: String
-helpMessage = "hs-ttp [OPTIONS] <DIRECTORY>\n\nOPTIONS: \n\t-h:\n\t--help: \tDisplay this help message\n\n\t-p:\n\t--port:\t\tSpecify a port\n\nDIRECTORY:\n\tThe directory to be used as the root of the HTTP server.\n\tAll subfolders within this directory will be accessible to the server's clients.\n\nThis will create a basic HTTP server that has its root based in DIRECTORY.\nIt can access any subfolder and file within this directory.\nIt cannot access anything outside of this directory.\n\nThe server binds to the wildcard address, meaning it will be accessible on any ip interface.\n"
-
+helpMessage = "hs-ttp [OPTIONS] <DIRECTORY>\n\n[OPTIONS]: \n    -h:\n    --help:             Display this help message\n\n    -p:\n    --port:             Specify a port\n\n    --serve-dotfiles:   Allow the server to serve hidden files (files that begin with a period)\n\n    -<wip>:\n    --<wip>:            Disable auto-generated index pages for directories lacking index.html files\n\n<DIRECTORY>:\n    The directory to be used as the root of the HTTP server.\n    All subfolders within this directory will be accessible to the server's clients.\n\nThis will create a basic HTTP server that has its root based in DIRECTORY.\nIt can access any subfolder and file within this directory.\nIt cannot access anything outside of this directory.\nBy default, the server will provide an auto-generated HTML index page for all directories lacking an index.html file.\n\nThe server binds to the wildcard address, meaning it will be accessible on any ip interface.\n"
 defaultPort :: String
 defaultPort = "8080"
 
@@ -45,7 +44,7 @@ main = do
             (rootDir:arguments) -> do
 
                 -- Debug prints
-                {-
+                --{-
                 putStrLn ("rootDir: " ++ rootDir);
                 putStrLn ("arguments: " ++ show arguments);
                 putStrLn ("flags: " ++ show flags);
@@ -53,7 +52,7 @@ main = do
                 putStrLn ("optArgs: " ++ show optArgs);
                 
                 putStrLn "----------------------";
-                -}
+                ---}
                 
                 unless (checkFlags flags)       $ throw (Error "Error: Invalid flag")
                 unless (checkOpts opts optArgs) $ throw (Error "Error: Invalid options")
@@ -64,8 +63,8 @@ main = do
                 runServer port serverFunc [rootDir]
                     where
                         serverFunc servArgs sock cliAddr = do
-                            --putStrLn ("Server args: " ++ show servArgs)
-                            --putStrLn ("Client connected from: " ++ show cliAddr)
+                            putStrLn ("Server args: " ++ show servArgs)
+                            putStrLn ("Client connected from: " ++ show cliAddr)
 
                             let root = headSafe servArgs
-                            doHttp root sock cliAddr
+                            doHttp root sock cliAddr flags
