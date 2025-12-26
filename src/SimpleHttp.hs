@@ -9,6 +9,7 @@ import Data.Time
 import Control.Monad ( unless )
 import System.Directory ( doesFileExist, doesDirectoryExist, getFileSize, makeAbsolute, canonicalizePath, listDirectory )
 import System.Posix.Files ( fileAccess )
+import System.Timeout ( timeout )
 import Network.Socket ( Socket, SockAddr )
 import Network.Socket.ByteString ( recv, sendAll )
 import Network.URI ( unEscapeString )
@@ -28,7 +29,11 @@ maxHeaderLength = 16384
 
 -- Header recv timeout (in microseconds)
 headerTimeout :: Int
-headerTimeout = 10000000
+headerTimeout = 10000000 -- 10 seconds to send entire header
+
+-- Chunk send timeout (in microseconds)
+sendTimeout :: Int
+sendTimeout = 30000000 -- 30 seconds to receive a chunk
 
 ------- Configuration ---------
 supportedMethods :: [String]
@@ -194,8 +199,11 @@ sendFile isHead filePath sock = do
         sendChunks sock' content = do
             let (chunk, rest) = BSL.splitAt chunkSize content -- Split the content into chunkSize sized chunks
             unless (BSL.null chunk) $ do -- Stop if we ran out
-                sendAll sock' (BSLC.toStrict chunk) -- Convert the chunk to strict and send it
-                sendChunks sock' rest -- Send the rest
+                -- Wrap the send in a timeout ("slow read" attack mitigation)
+                result <- timeout sendTimeout $ sendAll sock' (BSLC.toStrict chunk) -- Convert the chunk to strict and send it
+                case result of
+                    Nothing -> return () -- Client stopped reading (read too slowly), exit loop
+                    Just () -> sendChunks sock' rest -- No timeout, continue chunks
 
 -- Sends a generated HTML file representing the list of files
 -- Path is relative to the server root
