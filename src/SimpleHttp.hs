@@ -26,6 +26,10 @@ chunkSize = 4096
 maxHeaderLength :: Int
 maxHeaderLength = 16384
 
+-- Header recv timeout (in microseconds)
+headerTimeout :: Int
+headerTimeout = 10000000
+
 ------- Configuration ---------
 supportedMethods :: [String]
 supportedMethods = ["GET", "HEAD"]
@@ -61,7 +65,11 @@ getTimeStamp = formatTime defaultTimeLocale "%F %T" <$> getZonedTime
 
 -- Stops reading once it sees \r\n\r\n, or EOF
 readRequest :: Socket -> IO BS.ByteString
-readRequest sock = getHeaders BS.empty 0
+readRequest sock = do
+    result <- timeout headerTimeout (getHeaders BS.empty 0)
+    case result of
+        Nothing -> return BS.empty -- Timeout occured (slowloris protection)
+        Just bs -> return bs
     where
         getHeaders :: BS.ByteString -> Int -> IO BS.ByteString
         getHeaders buff bytesRead = do
