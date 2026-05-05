@@ -68,41 +68,36 @@ getTimeStamp :: IO String
 getTimeStamp = formatTime defaultTimeLocale "%F %T" <$> getZonedTime
 -- %F = %Y-%m-%d, %T = %H:%M:%S
 
--- Stops reading once it sees \r\n\r\n, or EOF
-readRequest :: Socket -> IO BS.ByteString
-readRequest sock = do
-    result <- timeout headerTimeout (getHeaders BS.empty 0)
+-- Splits a ByteString immediately after the first occurrence of a delimiter.
+-- The delimiter is kept on the left side of the split.
+splitAfter :: BS.ByteString -> BS.ByteString -> (BS.ByteString, BS.ByteString)
+splitAfter delim buff = case BS.breakSubstring delim buff of
+    (before, matchAndAfter)
+        | BS.null matchAndAfter -> (buff, BS.empty)
+        | otherwise             -> BS.splitAt ( (BS.length before) + (BS.length delim) ) before
+
+-- Takes socket and a starting buffer (leftover bytes after end of previous http request)
+-- Returns (requestHeader, leftovers)
+readRequest :: Socket -> BS.ByteString -> IO (BS.ByteString, BS.ByteString)
+readRequest sock leftovers = do
+    result <- timeout headerTimeout (getHeaders leftovers 0)
     case result of
-        Nothing -> return BS.empty -- Timeout occured (slowloris protection)
-        Just bs -> return bs
+        Nothing -> return (BS.empty, BS.empty) -- Timeout occured (slowloris protection)
+        Just (bs, rest) -> return (bs, rest)
     where
-        getHeaders :: BS.ByteString -> Int -> IO BS.ByteString
+        getHeaders :: BS.ByteString -> Int -> IO (BS.ByteString, BS.ByteString)
         getHeaders buff bytesRead = do
-            chunk <- recv sock bufferSize
-
-            let newBytesRead = bytesRead + BS.length chunk
-            if newBytesRead > maxHeaderLength then
-                -- Force a 400 bad request if length exceeded
-                return BS.empty
-            else if BS.null chunk then
-                -- EOF, return what we have
-                return buff
+            let (req, rest) = splitAfter (BSC.pack "\r\n\r\n") buff
+            if not (BS.null rest) || (BSC.pack "\r\n\r\n") `BS.isSuffixOf` req then do
+                return (req, rest) -- Found end of header
             else do
-                -- Append new chunk to buffer
-                let newBuffer = buff `BS.append` chunk
-                
-                -- Check for \r\n\r\n
-                if hasHeaderEnd newBuffer then
-                    -- Return the final buffer, not caring if more data is after header
-                    return newBuffer    
-                else
-                    -- Continue reading the header
-                    getHeaders newBuffer newBytesRead
+                -- \r\n\r\n not found yet, recev more
+                chunk <- recv sock bufferSize
+                let newBytesRead = bytesRead + BS.length chunk
 
-        -- Function to check if \r\n\r\n is in the buffer
-        hasHeaderEnd :: BS.ByteString -> Bool
-        hasHeaderEnd buf = BS.isInfixOf (BSC.pack "\r\n\r\n") buf
-
+                if newBytesRead > maxHeaderLength then return (BS.empty, BS.empty) -- Length exceeded, force a 400 error
+                else if BS.null chunk then return (buff, BS.empty) -- Hit EOF, terminate recursion
+                else getHeaders (buff `BS.append` chunk) newBytesRead -- All good, append new chunk to buffer and recurse
 
     
 -- Returns (method, filepath)
