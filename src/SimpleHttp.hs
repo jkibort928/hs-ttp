@@ -215,7 +215,7 @@ respond (method, filePath) root sock flags = do
         Nothing -> send403 sock -- Forbidden; Invalid path or hidden file
 
         Just collapsedPath -> do
-            let absFilePath = absRoot ++ ('/':collapsedPath)
+            let absFilPath = absRoot ++ ('/':collapsedPath)
             let isHead = method == "HEAD"
             
             isFile      <- doesFileExist absFilePath
@@ -225,7 +225,7 @@ respond (method, filePath) root sock flags = do
             --putStrLn ("absFilePath: " ++ absFilePath)
 
             if  | isFile    -> sendFile isHead absFilePath sock
-                | isDir     -> serveDirectory absPath isHead
+                | isDir     -> serveDirectory absFilePath isHead
                 | otherwise -> send404 sock
 
     where
@@ -276,9 +276,8 @@ doHttp :: String -> Socket -> SockAddr -> [String] -> IO ()
 doHttp root sock cliAddr flags = loop BS.empty
     where
         loop leftovers = do
-            (method, path, newLeftovers) <- httpDecode sock
-
-            unless null method $ do
+            (method, path, newLeftovers) <- httpDecode sock leftovers
+            unless (null method) $ do
                 timestamp <- getTimeStamp
                 putStrLn (timestamp ++ " " ++ show cliAddr ++ ": " ++ method ++ " " ++ path)
 
