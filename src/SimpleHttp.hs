@@ -1,3 +1,4 @@
+{-# LANGUAGE MultiWayIf #-}
 module SimpleHttp ( doHttp ) where
 
 -- Library Imports
@@ -215,7 +216,7 @@ respond (method, filePath) root sock flags = do
         Nothing -> send403 sock -- Forbidden; Invalid path or hidden file
 
         Just collapsedPath -> do
-            let absFilPath = absRoot ++ ('/':collapsedPath)
+            let absFilePath = absRoot ++ ('/':collapsedPath)
             let isHead = method == "HEAD"
             
             isFile      <- doesFileExist absFilePath
@@ -238,11 +239,11 @@ respond (method, filePath) root sock flags = do
                 -- TODO: make global boolean for generate index pages (allow disabling it)
 
         -- Generates and sends a file-browser style index.html
-       sendGeneratedIndex :: String -> IO ()
-       sendGeneratedIndex absPath = do
-           dirList  <- listDirectory absPath
-           dirList' <- mapM (dirSlash absPath) dirList
-           sendHtmlIndex filePath (sort dirList') sock -- Relative to server root, not absolute paths
+        sendGeneratedIndex :: String -> IO ()
+        sendGeneratedIndex absPath = do
+            dirList  <- listDirectory absPath
+            dirList' <- mapM (dirSlash absPath) dirList
+            sendHtmlIndex filePath (sort dirList') sock -- Relative to server root, not absolute paths
 
     
         -- Collapses traversals ("..")
