@@ -160,7 +160,7 @@ sendFile isHead filePath sock = do
         fileSize <- getFileSize (canonPath)
 
         -- TODO: Let the response be interchangeable so this function can be used to send 404.html?
-        let header = BSC.pack ("HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: " ++ (show fileSize) ++ "\r\n\r\n")
+        let header = BSC.pack ("HTTP/1.1 200 OK\r\nConnection: keep-alive\r\nContent-Length: " ++ (show fileSize) ++ "\r\n\r\n")
         sendAll sock header
 
         if isHead then do
@@ -188,7 +188,7 @@ sendHtmlIndex path contents sock = do
 
     let generatedPage = BSC.pack $ htmlBegin ++ htmlList ++ htmlEnd
     let htmlSize = BS.length generatedPage
-    let header = BSC.pack ("HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: " ++ (show htmlSize) ++ "\r\n\r\n")
+    let header = BSC.pack ("HTTP/1.1 200 OK\r\nConnection: keep-alive\r\nContent-Length: " ++ (show htmlSize) ++ "\r\n\r\n")
     sendAll sock header
     sendAll sock generatedPage
 
@@ -293,14 +293,19 @@ respond (method, filePath) root sock flags = do
 ---------- Exported -----------
 
 doHttp :: String -> Socket -> SockAddr -> [String] -> IO ()
-doHttp root sock cliAddr flags = do
-    decoded <- httpDecode sock
-    
-    -- Concise log
-    timestamp <- getTimeStamp
-    putStrLn (timestamp ++ " " ++ show cliAddr ++ ": " ++ fst decoded ++ " " ++ snd decoded)
-    
-    respond decoded root sock flags
+doHttp root sock cliAddr flags = loop BS.empty
+    where
+        loop leftovers = do
+            (method, path, newLeftovers) <- httpDecode sock
+
+            unless null method $ do
+                timestamp <- getTimeStamp
+                putStrLn (timestamp ++ " " ++ show cliAddr ++ ": " ++ method ++ " " ++ path)
+
+                respond (method, path) root sock flags
+
+                -- Recursively wait for the next request on the same socket
+                loop newLeftovers 
     
 -- TODO: Add functionality for a commandline switch to disable generated index pages. Will 404 if you try to access a directory instead.
 -- TODO: Add support for 404.html, maybe as built-in to the code and generated, or stored in root as a file.
