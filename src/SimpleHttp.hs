@@ -209,62 +209,42 @@ sendHtmlIndex path contents sock = do
 -- Perform proper checking before calling sendFile to send the file to the client over http
 respond :: (String, String) -> String -> Socket -> [String] -> IO ()
 respond (method, filePath) root sock flags = do
+    absRoot <- makeAbsolute root
 
-    if method == "" then do
-        return ()
-    else do
+    case collapsePath filePath of
+        Nothing -> send403 sock -- Forbidden; Invalid path or hidden file
 
-        let isHead = method == "HEAD"
+        Just collapsedPath -> do
+            let absFilePath = absRoot ++ ('/':collapsedPath)
+            let isHead = method == "HEAD"
+            
+            isFile      <- doesFileExist absFilePath
+            isDir       <- doesDirectoryExist absFilePath
 
-        case collapsePath filePath of
-            Nothing -> do
-                -- Send 403 forbidden if the path is not good
-                send403 sock
-                return ()
+            --putStrLn ("collapsedPath: " ++ collapsedPath)
+            --putStrLn ("absFilePath: " ++ absFilePath)
 
-            Just collapsedPath -> do
+            if  | isFile    -> sendFile isHead absFilePath sock
+                | isDir     -> serveDirectory absPath isHead
+                | otherwise -> send404 sock
 
-                -- Attach absolute root to the collapsed path
-                absRoot <- makeAbsolute root
-                let absFilePath = absRoot ++ ('/':collapsedPath)
-
-                --putStrLn ("collapsedPath: " ++ collapsedPath)
-                --putStrLn ("absFilePath: " ++ absFilePath)
-                
-                theFileExists <- doesFileExist absFilePath
-                if (theFileExists) then do
-                    -- File exists, send it
-                    --putStrLn "Exists, sending..."
-                    sendFile isHead absFilePath sock
-                    return ()
-                else do
-                    -- File doesn't exist, check if directory
-                    --putStrLn "Doesn't exist, checking if dir..."
-                    theDirExists <- doesDirectoryExist absFilePath
-                    if (theDirExists) then do
-                        -- Directory exists, check for index.html
-                        --putStrLn "Dir exists, checking for index..."
-                        let indexFilePath = absFilePath ++ "/index.html"
-                        indexExists <- doesFileExist indexFilePath
-                        if (indexExists) then do
-                            -- Index exists, send it
-                            --putStrLn "Index exists"
-                            sendFile isHead indexFilePath sock
-                            return ()
-                        else do
-                            -- Directory exists, but has no index
-                            --putStrLn "Dir exists, index does not, sending generated page"
-                            dirList <- listDirectory absFilePath
-                            dirList' <- mapM (dirSlash absFilePath) dirList
-                            
-                            sendHtmlIndex filePath (sort dirList') sock -- NOT absolute path as first arg. We want relative to the server root.
-                            return ()
-                    else do
-                        -- Neither directory nor file exist
-                        --putStrLn "Neither dir nor file exists"
-                        send404 sock
-                        return ()
     where
+        serveDirectory :: String -> Bool -> IO ()
+        serveDirectory absPath isHead = do
+            let indexPath = absPath ++ "/index.html"
+            hasIndex <- doesFileExist indexPath
+            if | hasIndex  -> sendFile isHead indexPath sock
+               | otherwise -> sendGeneratedIndex absPath
+                -- TODO: make global boolean for generate index pages (allow disabling it)
+
+        -- Generates and sends a file-browser style index.html
+       sendGeneratedIndex :: String -> IO ()
+       sendGeneratedIndex absPath = do
+           dirList  <- listDirectory absPath
+           dirList' <- mapM (dirSlash absPath) dirList
+           sendHtmlIndex filePath (sort dirList') sock -- Relative to server root, not absolute paths
+
+    
         -- Collapses traversals ("..")
         -- A path is invalid if it traverses past the server root at any point
         -- A path is also invalid if it contains hidden files when not allowed
