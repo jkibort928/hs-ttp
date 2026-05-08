@@ -100,53 +100,34 @@ readRequest sock leftovers = do
                 else getHeaders (buff `BS.append` chunk) newBytesRead -- All good, append new chunk to buffer and recurse
 
     
--- Returns (method, filepath)
+-- Returns (method, filepath, leftovers)
 -- Empty method string signifies an error has already been sent to the client
-httpDecode :: Socket -> IO (String, String)
-httpDecode sock = do
-
-    -- Recieve the request
-    request <- readRequest sock
+httpDecode :: Socket -> BS.ByteString -> IO (String, String, BS.ByteString)
+httpDecode sock leftovers = do
+    (request, newLeftovers) <- readRequest sock leftovers
+    
+    let reqLine = BSC.unpack $ fst $ BS.breakSubstring (BSC.pack "\r\n") request
+    let (method, rawUri, httpVer) = unpackReqLine reqLine
+    let unqueried = takeWhile (\c -> c /= '?') rawUri -- (drop all text after a question mark, queries not used)
+    let unescaped = unEscapeString unqueried -- Decode percent encoding.
+    
     --putStrLn ("FULL REQUEST:\n" ++ show request)
     --putStrLn "----------------------------------"
-    
-    -- Decode the request line
-    let reqLine = BSC.unpack $ fst $ BS.breakSubstring (BSC.pack "\r\n") request
     --putStrLn ("Request line: " ++ reqLine)
-
-    -- Extract Method, URI, and HTTP Version
-    let (method, rawUri, httpVer) = unpackReqLine reqLine
-            
     --putStrLn ("method: " ++ method ++ "\nrawUri: " ++ rawUri ++ "\nhttpVer: " ++ httpVer)
 
-    if not (checkHeadSlash rawUri) then do
-        -- No leading slash, malformed
-        send400 sock
-        return ("", "")
-    else if (httpVer /= "HTTP/1.1" && httpVer /= "HTTP/1.0") then do
-        -- Unsupported HTTP version
-        send505 sock
-        return ("", "")
-    else if not (method `elem` supportedMethods) then do
-        -- Unsupported method
-        send501 sock
-        return ("", "")
-    else do
-        -- So far so good, disregard any queries because they are not utilized
-        -- (drop all text after a question mark)
-        let unqueried = takeWhile (\c -> c /= '?') rawUri
-
-        -- Decode percent encoding.
-        let unescaped = unEscapeString unqueried
-
-        -- Check for control characters
-        if ( any isControl unescaped ) then do
-            send400 sock
-            return ("", "")
-        else
-            return (method, unescaped)
+    if  | BS.null request                               -> return ("", "", BS.empty)
+        | not (checkHeadSlash rawUri)                   -> failWith (send400 sock)
+        | httpVer `notElem` ["HTTP/1.1", "HTTP/1.0"]    -> failWith (send505 sock)
+        | method `notElem` supportedMethods             -> failWith (send501 sock)
+        | any isControl unescaped                       -> failWith (send400 sock)
+        | otherwise                                     -> return (method, unescaped, newLeftovers)
 
     where
+        -- Does IO action then returns empty
+        failWith :: IO () -> IO (String, String, BS.ByteString)
+        failWith errAction = errAction >> return ("", "", BS.empty)
+    
         -- Breaks up the request line by spaces into a triple
         unpackReqLine :: String -> (String, String, String)
         unpackReqLine str = (fst split1, fst split2, (drop 1) $ snd split2)
