@@ -75,7 +75,7 @@ splitAfter :: BS.ByteString -> BS.ByteString -> (BS.ByteString, BS.ByteString)
 splitAfter delim buff = case BS.breakSubstring delim buff of
     (before, matchAndAfter)
         | BS.null matchAndAfter -> (buff, BS.empty)
-        | otherwise             -> BS.splitAt ( (BS.length before) + (BS.length delim) ) before
+        | otherwise             -> BS.splitAt ( (BS.length before) + (BS.length delim) ) buff
 
 -- Takes socket and a starting buffer (leftover bytes after end of previous http request)
 -- Returns (requestHeader, leftovers)
