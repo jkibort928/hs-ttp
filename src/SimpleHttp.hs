@@ -46,23 +46,23 @@ supportedMethods = ["GET", "HEAD"]
 
 -- Malformed request
 send400 :: Socket -> IO ()
-send400 sock = sendAll sock $ BSC.pack "HTTP/1.1 400 Bad Request\r\n\r\n"
+send400 sock = sendAll sock $ BSC.pack "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n"
 
 -- File is not readable or is outside the server root
 send403 :: Socket -> IO ()
-send403 sock = sendAll sock $ BSC.pack "HTTP/1.1 403 Forbidden\r\n\r\n"
+send403 sock = sendAll sock $ BSC.pack "HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n"
 
 -- File not found (or outside the scope of the server directory)
 send404 :: Socket -> IO ()
-send404 sock = sendAll sock $ BSC.pack "HTTP/1.1 404 Not Found\r\n\r\n"
+send404 sock = sendAll sock $ BSC.pack "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n"
 
 -- Invalid method
 send501 :: Socket -> IO ()
-send501 sock = sendAll sock $ BSC.pack "HTTP/1.1 501 Not Implemented\r\n\r\n"
+send501 sock = sendAll sock $ BSC.pack "HTTP/1.1 501 Not Implemented\r\nContent-Length: 0\r\n\r\n"
 
 -- Invalid version
 send505 :: Socket -> IO ()
-send505 sock = sendAll sock $ BSC.pack "HTTP/1.1 505 HTTP Version Not Supported\r\n\r\n"
+send505 sock = sendAll sock $ BSC.pack "HTTP/1.1 505 HTTP Version Not Supported\r\nContent-Length: 0\r\n\r\n"
 
 ---------- Helpers ------------
 
