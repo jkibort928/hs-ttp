@@ -7,6 +7,7 @@ import Data.Char ( isControl )
 import Data.List ( sort, intercalate )
 import Data.List.Split ( splitOn )
 import Data.Time
+import qualified Data.Text as T
 import Control.Monad ( unless )
 import System.Directory ( doesFileExist, doesDirectoryExist, getFileSize, makeAbsolute, canonicalizePath, listDirectory )
 import System.Posix.Files ( fileAccess )
@@ -14,6 +15,7 @@ import System.Timeout ( timeout )
 import Network.Socket ( Socket, SockAddr )
 import Network.Socket.ByteString ( recv, sendAll )
 import Network.URI ( unEscapeString )
+import Network.Mime (defaultMimeLookup)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Char8 as BSC ( pack, unpack )
@@ -63,6 +65,10 @@ send505 :: Socket -> IO ()
 send505 sock = sendAll sock $ BSC.pack "HTTP/1.1 505 HTTP Version Not Supported\r\n\r\n"
 
 ---------- Helpers ------------
+
+-- File mimetypes
+getMime :: String -> String
+getMime path = BSC.unpack $ defaultMimeLookup (T.pack path)
 
 -- Format as "YYYY-MM-DD HH:MM:SS"
 getTimeStamp :: IO String
@@ -160,8 +166,15 @@ sendFile isHead filePath sock = do
         canonPath <- canonicalizePath filePath
         fileSize <- getFileSize (canonPath)
 
+        let mimeType = getMime filePath
+
         -- TODO: Let the response be interchangeable so this function can be used to send 404.html?
-        let header = BSC.pack ("HTTP/1.1 200 OK\r\nConnection: keep-alive\r\nContent-Length: " ++ (show fileSize) ++ "\r\n\r\n")
+        let header = BSC.pack $ "HTTP/1.1 200 OK\r\n" ++
+                                "Connection: keep-alive\r\n" ++
+                                "Content-Length: " ++ (show fileSize) ++ "\r\n" ++
+                                "Content-Type: " ++ mimeType ++ "\r\n" ++
+                                "X-Content-Type-Options: nosniff\r\n" ++
+                                "\r\n"
         sendAll sock header
 
         if isHead then do
@@ -189,7 +202,11 @@ sendHtmlIndex path contents sock = do
 
     let generatedPage = BSC.pack $ htmlBegin ++ htmlList ++ htmlEnd
     let htmlSize = BS.length generatedPage
-    let header = BSC.pack ("HTTP/1.1 200 OK\r\nConnection: keep-alive\r\nContent-Length: " ++ (show htmlSize) ++ "\r\n\r\n")
+    let header = BSC.pack $ "HTTP/1.1 200 OK\r\n" ++
+                            "Connection: keep-alive\r\n" ++
+                            "Content-Length: " ++ (show htmlSize) ++ "\r\n" ++
+                            "Content-Type: text/html; charset=UTF-8\r\n" ++
+                            "X-Content-Type-Options: nosniff\r\n\r\n"
     sendAll sock header
     sendAll sock generatedPage
 
