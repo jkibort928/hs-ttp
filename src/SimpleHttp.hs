@@ -251,9 +251,9 @@ respond (method, filePath) root sock flags = do
         serveDirectory absPath isHead = do
             let indexPath = absPath ++ "/index.html"
             hasIndex <- doesFileExist indexPath
-            if | hasIndex  -> sendFile isHead indexPath sock
-               | otherwise -> sendGeneratedIndex absPath
-                -- TODO: make global boolean for generate index pages (allow disabling it)
+            if  | hasIndex  -> sendFile isHead indexPath sock
+                | "no-index" `elem` flags -> send404 sock
+                | otherwise -> sendGeneratedIndex absPath
 
         -- Generates and sends a file-browser style index.html
         sendGeneratedIndex :: String -> IO ()

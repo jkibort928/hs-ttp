@@ -23,8 +23,7 @@ enjoyable and unique language to develop in.
 
         --serve-dotfiles:   Allow the server to serve hidden files (files that begin with a period)
 
-        -<wip>:
-        --<wip>:            Disable auto-generated index pages for directories lacking index.html files
+        --no-index:         Disable auto-generated index pages for directories lacking index.html files
 
     <DIRECTORY>:
         The directory to be used as the root of the HTTP server.
