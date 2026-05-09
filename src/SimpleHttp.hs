@@ -1,3 +1,4 @@
+{-# LANGUAGE MultiWayIf #-}
 module SimpleHttp ( doHttp ) where
 
 -- Library Imports
@@ -68,90 +69,66 @@ getTimeStamp :: IO String
 getTimeStamp = formatTime defaultTimeLocale "%F %T" <$> getZonedTime
 -- %F = %Y-%m-%d, %T = %H:%M:%S
 
--- Stops reading once it sees \r\n\r\n, or EOF
-readRequest :: Socket -> IO BS.ByteString
-readRequest sock = do
-    result <- timeout headerTimeout (getHeaders BS.empty 0)
+-- Splits a ByteString immediately after the first occurrence of a delimiter.
+-- The delimiter is kept on the left side of the split.
+splitAfter :: BS.ByteString -> BS.ByteString -> (BS.ByteString, BS.ByteString)
+splitAfter delim buff = case BS.breakSubstring delim buff of
+    (before, matchAndAfter)
+        | BS.null matchAndAfter -> (buff, BS.empty)
+        | otherwise             -> BS.splitAt ( (BS.length before) + (BS.length delim) ) buff
+
+-- Takes socket and a starting buffer (leftover bytes after end of previous http request)
+-- Returns (requestHeader, leftovers)
+readRequest :: Socket -> BS.ByteString -> IO (BS.ByteString, BS.ByteString)
+readRequest sock leftovers = do
+    result <- timeout headerTimeout (getHeaders leftovers 0)
     case result of
-        Nothing -> return BS.empty -- Timeout occured (slowloris protection)
-        Just bs -> return bs
+        Nothing -> return (BS.empty, BS.empty) -- Timeout occured (slowloris protection)
+        Just (bs, rest) -> return (bs, rest)
     where
-        getHeaders :: BS.ByteString -> Int -> IO BS.ByteString
+        getHeaders :: BS.ByteString -> Int -> IO (BS.ByteString, BS.ByteString)
         getHeaders buff bytesRead = do
-            chunk <- recv sock bufferSize
-
-            let newBytesRead = bytesRead + BS.length chunk
-            if newBytesRead > maxHeaderLength then
-                -- Force a 400 bad request if length exceeded
-                return BS.empty
-            else if BS.null chunk then
-                -- EOF, return what we have
-                return buff
+            let (req, rest) = splitAfter (BSC.pack "\r\n\r\n") buff
+            if not (BS.null rest) || (BSC.pack "\r\n\r\n") `BS.isSuffixOf` req then do
+                return (req, rest) -- Found end of header
             else do
-                -- Append new chunk to buffer
-                let newBuffer = buff `BS.append` chunk
-                
-                -- Check for \r\n\r\n
-                if hasHeaderEnd newBuffer then
-                    -- Return the final buffer, not caring if more data is after header
-                    return newBuffer    
-                else
-                    -- Continue reading the header
-                    getHeaders newBuffer newBytesRead
+                -- \r\n\r\n not found yet, recev more
+                chunk <- recv sock bufferSize
+                let newBytesRead = bytesRead + BS.length chunk
 
-        -- Function to check if \r\n\r\n is in the buffer
-        hasHeaderEnd :: BS.ByteString -> Bool
-        hasHeaderEnd buf = BS.isInfixOf (BSC.pack "\r\n\r\n") buf
-
+                if newBytesRead > maxHeaderLength then return (BS.empty, BS.empty) -- Length exceeded, force a 400 error
+                else if BS.null chunk then return (buff, BS.empty) -- Hit EOF, terminate recursion
+                else getHeaders (buff `BS.append` chunk) newBytesRead -- All good, append new chunk to buffer and recurse
 
     
--- Returns (method, filepath)
+-- Returns (method, filepath, leftovers)
 -- Empty method string signifies an error has already been sent to the client
-httpDecode :: Socket -> IO (String, String)
-httpDecode sock = do
-
-    -- Recieve the request
-    request <- readRequest sock
+httpDecode :: Socket -> BS.ByteString -> IO (String, String, BS.ByteString)
+httpDecode sock leftovers = do
+    (request, newLeftovers) <- readRequest sock leftovers
+    
+    let reqLine = BSC.unpack $ fst $ BS.breakSubstring (BSC.pack "\r\n") request
+    let (method, rawUri, httpVer) = unpackReqLine reqLine
+    let unqueried = takeWhile (\c -> c /= '?') rawUri -- (drop all text after a question mark, queries not used)
+    let unescaped = unEscapeString unqueried -- Decode percent encoding.
+    
     --putStrLn ("FULL REQUEST:\n" ++ show request)
     --putStrLn "----------------------------------"
-    
-    -- Decode the request line
-    let reqLine = BSC.unpack $ fst $ BS.breakSubstring (BSC.pack "\r\n") request
     --putStrLn ("Request line: " ++ reqLine)
-
-    -- Extract Method, URI, and HTTP Version
-    let (method, rawUri, httpVer) = unpackReqLine reqLine
-            
     --putStrLn ("method: " ++ method ++ "\nrawUri: " ++ rawUri ++ "\nhttpVer: " ++ httpVer)
 
-    if not (checkHeadSlash rawUri) then do
-        -- No leading slash, malformed
-        send400 sock
-        return ("", "")
-    else if (httpVer /= "HTTP/1.1" && httpVer /= "HTTP/1.0") then do
-        -- Unsupported HTTP version
-        send505 sock
-        return ("", "")
-    else if not (method `elem` supportedMethods) then do
-        -- Unsupported method
-        send501 sock
-        return ("", "")
-    else do
-        -- So far so good, disregard any queries because they are not utilized
-        -- (drop all text after a question mark)
-        let unqueried = takeWhile (\c -> c /= '?') rawUri
-
-        -- Decode percent encoding.
-        let unescaped = unEscapeString unqueried
-
-        -- Check for control characters
-        if ( any isControl unescaped ) then do
-            send400 sock
-            return ("", "")
-        else
-            return (method, unescaped)
+    if  | BS.null request                               -> return ("", "", BS.empty)
+        | not (checkHeadSlash rawUri)                   -> failWith (send400 sock)
+        | httpVer `notElem` ["HTTP/1.1", "HTTP/1.0"]    -> failWith (send505 sock)
+        | method `notElem` supportedMethods             -> failWith (send501 sock)
+        | any isControl unescaped                       -> failWith (send400 sock)
+        | otherwise                                     -> return (method, unescaped, newLeftovers)
 
     where
+        -- Does IO action then returns empty
+        failWith :: IO () -> IO (String, String, BS.ByteString)
+        failWith errAction = errAction >> return ("", "", BS.empty)
+    
         -- Breaks up the request line by spaces into a triple
         unpackReqLine :: String -> (String, String, String)
         unpackReqLine str = (fst split1, fst split2, (drop 1) $ snd split2)
@@ -184,7 +161,7 @@ sendFile isHead filePath sock = do
         fileSize <- getFileSize (canonPath)
 
         -- TODO: Let the response be interchangeable so this function can be used to send 404.html?
-        let header = BSC.pack ("HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: " ++ (show fileSize) ++ "\r\n\r\n")
+        let header = BSC.pack ("HTTP/1.1 200 OK\r\nConnection: keep-alive\r\nContent-Length: " ++ (show fileSize) ++ "\r\n\r\n")
         sendAll sock header
 
         if isHead then do
@@ -212,7 +189,7 @@ sendHtmlIndex path contents sock = do
 
     let generatedPage = BSC.pack $ htmlBegin ++ htmlList ++ htmlEnd
     let htmlSize = BS.length generatedPage
-    let header = BSC.pack ("HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: " ++ (show htmlSize) ++ "\r\n\r\n")
+    let header = BSC.pack ("HTTP/1.1 200 OK\r\nConnection: keep-alive\r\nContent-Length: " ++ (show htmlSize) ++ "\r\n\r\n")
     sendAll sock header
     sendAll sock generatedPage
 
@@ -233,62 +210,42 @@ sendHtmlIndex path contents sock = do
 -- Perform proper checking before calling sendFile to send the file to the client over http
 respond :: (String, String) -> String -> Socket -> [String] -> IO ()
 respond (method, filePath) root sock flags = do
+    absRoot <- makeAbsolute root
 
-    if method == "" then do
-        return ()
-    else do
+    case collapsePath filePath of
+        Nothing -> send403 sock -- Forbidden; Invalid path or hidden file
 
-        let isHead = method == "HEAD"
+        Just collapsedPath -> do
+            let absFilePath = absRoot ++ ('/':collapsedPath)
+            let isHead = method == "HEAD"
+            
+            isFile      <- doesFileExist absFilePath
+            isDir       <- doesDirectoryExist absFilePath
 
-        case collapsePath filePath of
-            Nothing -> do
-                -- Send 403 forbidden if the path is not good
-                send403 sock
-                return ()
+            --putStrLn ("collapsedPath: " ++ collapsedPath)
+            --putStrLn ("absFilePath: " ++ absFilePath)
 
-            Just collapsedPath -> do
+            if  | isFile    -> sendFile isHead absFilePath sock
+                | isDir     -> serveDirectory absFilePath isHead
+                | otherwise -> send404 sock
 
-                -- Attach absolute root to the collapsed path
-                absRoot <- makeAbsolute root
-                let absFilePath = absRoot ++ ('/':collapsedPath)
-
-                --putStrLn ("collapsedPath: " ++ collapsedPath)
-                --putStrLn ("absFilePath: " ++ absFilePath)
-                
-                theFileExists <- doesFileExist absFilePath
-                if (theFileExists) then do
-                    -- File exists, send it
-                    --putStrLn "Exists, sending..."
-                    sendFile isHead absFilePath sock
-                    return ()
-                else do
-                    -- File doesn't exist, check if directory
-                    --putStrLn "Doesn't exist, checking if dir..."
-                    theDirExists <- doesDirectoryExist absFilePath
-                    if (theDirExists) then do
-                        -- Directory exists, check for index.html
-                        --putStrLn "Dir exists, checking for index..."
-                        let indexFilePath = absFilePath ++ "/index.html"
-                        indexExists <- doesFileExist indexFilePath
-                        if (indexExists) then do
-                            -- Index exists, send it
-                            --putStrLn "Index exists"
-                            sendFile isHead indexFilePath sock
-                            return ()
-                        else do
-                            -- Directory exists, but has no index
-                            --putStrLn "Dir exists, index does not, sending generated page"
-                            dirList <- listDirectory absFilePath
-                            dirList' <- mapM (dirSlash absFilePath) dirList
-                            
-                            sendHtmlIndex filePath (sort dirList') sock -- NOT absolute path as first arg. We want relative to the server root.
-                            return ()
-                    else do
-                        -- Neither directory nor file exist
-                        --putStrLn "Neither dir nor file exists"
-                        send404 sock
-                        return ()
     where
+        serveDirectory :: String -> Bool -> IO ()
+        serveDirectory absPath isHead = do
+            let indexPath = absPath ++ "/index.html"
+            hasIndex <- doesFileExist indexPath
+            if | hasIndex  -> sendFile isHead indexPath sock
+               | otherwise -> sendGeneratedIndex absPath
+                -- TODO: make global boolean for generate index pages (allow disabling it)
+
+        -- Generates and sends a file-browser style index.html
+        sendGeneratedIndex :: String -> IO ()
+        sendGeneratedIndex absPath = do
+            dirList  <- listDirectory absPath
+            dirList' <- mapM (dirSlash absPath) dirList
+            sendHtmlIndex filePath (sort dirList') sock -- Relative to server root, not absolute paths
+
+    
         -- Collapses traversals ("..")
         -- A path is invalid if it traverses past the server root at any point
         -- A path is also invalid if it contains hidden files when not allowed
@@ -317,14 +274,18 @@ respond (method, filePath) root sock flags = do
 ---------- Exported -----------
 
 doHttp :: String -> Socket -> SockAddr -> [String] -> IO ()
-doHttp root sock cliAddr flags = do
-    decoded <- httpDecode sock
-    
-    -- Concise log
-    timestamp <- getTimeStamp
-    putStrLn (timestamp ++ " " ++ show cliAddr ++ ": " ++ fst decoded ++ " " ++ snd decoded)
-    
-    respond decoded root sock flags
+doHttp root sock cliAddr flags = loop BS.empty
+    where
+        loop leftovers = do
+            (method, path, newLeftovers) <- httpDecode sock leftovers
+            unless (null method) $ do
+                timestamp <- getTimeStamp
+                putStrLn (timestamp ++ " " ++ show cliAddr ++ ": " ++ method ++ " " ++ path)
+
+                respond (method, path) root sock flags
+
+                -- Recursively wait for the next request on the same socket
+                loop newLeftovers 
     
 -- TODO: Add functionality for a commandline switch to disable generated index pages. Will 404 if you try to access a directory instead.
 -- TODO: Add support for 404.html, maybe as built-in to the code and generated, or stored in root as a file.
