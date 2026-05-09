@@ -9,4 +9,5 @@ serverVersion = showVersion version
 -- Pre-formatted HTTP header line
 serverHeader :: String
 serverHeader =  "Server: hs-ttp/" ++ serverVersion ++ "\r\n" ++
-                "X-Powered-By: Haskell :D" ++ "\r\n"
+                "X-Origin-Server: hs-ttp/" ++ serverVersion ++ "\r\n" ++
+                "X-Powered-By: Haskell :D\r\n"
