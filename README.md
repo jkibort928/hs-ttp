@@ -18,6 +18,8 @@ enjoyable and unique language to develop in.
         -h:
         --help:             Display this help message
 
+        --version:          Display the server version
+
         -p:
         --port:             Specify a port
 

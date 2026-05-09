@@ -4,6 +4,8 @@ hs-ttp [OPTIONS] <DIRECTORY>
     -h:
     --help:             Display this help message
 
+    --version:          Display the server version
+
     -p:
     --port:             Specify a port
 

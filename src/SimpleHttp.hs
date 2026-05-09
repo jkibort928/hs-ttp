@@ -21,6 +21,8 @@ import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Char8 as BSC ( pack, unpack )
 import qualified Data.ByteString.Char8 as BSLC ( toStrict )
 
+import Version (serverHeader)
+
 bufferSize :: Int
 bufferSize = 1024
 
@@ -159,7 +161,6 @@ sendFile isHead filePath sock = do
     if not hasAccess then do
         -- Send 403 forbidden, cannot read file
         send403 sock
-        return ()
     else do
 
         -- Resolve symlinks for the true size of the file
@@ -168,8 +169,9 @@ sendFile isHead filePath sock = do
 
         let mimeType = getMime filePath
 
-        -- TODO: Let the response be interchangeable so this function can be used to send 404.html?
+        -- TODO: Let the response line be interchangeable so this function can be used to send 404.html?
         let header = BSC.pack $ "HTTP/1.1 200 OK\r\n" ++
+                                serverHeader ++
                                 "Connection: keep-alive\r\n" ++
                                 "Content-Length: " ++ (show fileSize) ++ "\r\n" ++
                                 "Content-Type: " ++ mimeType ++ "\r\n" ++
@@ -177,13 +179,10 @@ sendFile isHead filePath sock = do
                                 "\r\n"
         sendAll sock header
 
-        if isHead then do
-            return ()
-        else do
-            -- Read the file lazily
+        unless isHead $ do
             fileContents <- BSL.readFile filePath
-            -- Send in chunks over the socket
             sendChunks sock fileContents
+            
     where
         sendChunks :: Socket -> BSL.ByteString -> IO ()
         sendChunks sock' content = do
@@ -203,6 +202,7 @@ sendHtmlIndex path contents sock = do
     let generatedPage = BSC.pack $ htmlBegin ++ htmlList ++ htmlEnd
     let htmlSize = BS.length generatedPage
     let header = BSC.pack $ "HTTP/1.1 200 OK\r\n" ++
+                            serverHeader ++
                             "Connection: keep-alive\r\n" ++
                             "Content-Length: " ++ (show htmlSize) ++ "\r\n" ++
                             "Content-Type: text/html; charset=UTF-8\r\n" ++
