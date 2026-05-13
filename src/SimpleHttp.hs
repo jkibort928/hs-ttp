@@ -247,6 +247,11 @@ respond (method, filePath) root sock flags = do
                 | otherwise -> send404 sock
 
     where
+
+        isRestricted :: String -> Bool
+        isRestricted ('.':_) = "serve-dotfiles" `notElem` flags
+        isRestricted _       = False
+                
         serveDirectory :: String -> Bool -> IO ()
         serveDirectory absPath isHead = do
             let indexPath = absPath ++ "/index.html"
@@ -258,8 +263,10 @@ respond (method, filePath) root sock flags = do
         -- Generates and sends a file-browser style index.html
         sendGeneratedIndex :: String -> IO ()
         sendGeneratedIndex absPath = do
-            dirList  <- listDirectory absPath
-            dirList' <- mapM (dirSlash absPath) dirList
+            dirListRaw  <- listDirectory absPath
+            let dirList = filter (not . isRestricted) dirListRaw
+            
+            dirList'    <- mapM (dirSlash absPath) dirList
             sendHtmlIndex filePath (sort dirList') sock -- Relative to server root, not absolute paths
 
     
@@ -277,7 +284,7 @@ respond (method, filePath) root sock flags = do
                     | x == ".."             = case stack of
                         []      -> Nothing -- Terminate and return invalid if we backwards traverse when stack empty
                         (_:s)   -> helper xs s -- pop off the stack when we backwards traverse
-                    | (head x) == '.' && not ("serve-dotfiles" `elem` flags) = Nothing -- Prevent serving of dotfiles unless allowed by flags (terminate and return null)
+                    | isRestricted xs       = Nothing -- Prevent serving of dotfiles (terminate and return null)
                     | otherwise             = helper xs (x:stack) -- Push to stack
 
         -- Appends a / to the end of an item if it is a directory.
