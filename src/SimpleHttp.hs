@@ -284,7 +284,7 @@ respond (method, filePath) root sock flags = do
                     | x == ".."             = case stack of
                         []      -> Nothing -- Terminate and return invalid if we backwards traverse when stack empty
                         (_:s)   -> helper xs s -- pop off the stack when we backwards traverse
-                    | isRestricted xs       = Nothing -- Prevent serving of dotfiles (terminate and return null)
+                    | isRestricted x        = Nothing -- Prevent serving of dotfiles (terminate and return null)
                     | otherwise             = helper xs (x:stack) -- Push to stack
 
         -- Appends a / to the end of an item if it is a directory.
