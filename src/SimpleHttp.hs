@@ -83,7 +83,9 @@ splitAfter :: BS.ByteString -> BS.ByteString -> (BS.ByteString, BS.ByteString)
 splitAfter delim buff = case BS.breakSubstring delim buff of
     (before, matchAndAfter)
         | BS.null matchAndAfter -> (buff, BS.empty)
-        | otherwise             -> BS.splitAt ( (BS.length before) + (BS.length delim) ) buff
+        | otherwise             -> 
+            let (match, after) = BS.splitAt (BS.length delim) matchAndAfter
+            in (before `BS.append` match, after)
 
 -- Takes socket and a starting buffer (leftover bytes after end of previous http request)
 -- Returns (requestHeader, leftovers)
