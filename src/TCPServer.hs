@@ -55,8 +55,8 @@ acceptLoop server args sock = forever $ do
         -- Handle each connection, spawning a thread
         -- We want to return nothing so we use void to discard the threadId from forkFinally
         -- We use forkFinally to start the server, and give it a cleanup function to run when the thread ends
-        -- We use const because forkFinally expects a function,
-        --   but we don't want to take an argument when we gracefully close.
+        -- We use const because forkFinally expects a function that takes an argument,
+        --   but we don't want to take an argument when we gracefully close, so we ignore it.
         -- Const just "eats" an argument essentially
         handleConn (conn, peer) = void $ forkFinally (server args conn peer) (const $ gracefulClose conn 5000)
 
