@@ -91,25 +91,35 @@ splitAfter delim buff = case BS.breakSubstring delim buff of
 -- Returns (requestHeader, leftovers)
 readRequest :: Socket -> BS.ByteString -> IO (BS.ByteString, BS.ByteString)
 readRequest sock leftovers = do
-    result <- timeout headerTimeout (getHeaders leftovers 0)
+    result <- timeout headerTimeout (getHeaders BS.empty leftovers)
     case result of
         Nothing -> return (BS.empty, BS.empty) -- Timeout occured (slowloris protection)
         Just (bs, rest) -> return (bs, rest)
     where
         delim = BSC.pack "\r\n\r\n"
-        getHeaders :: BS.ByteString -> Int -> IO (BS.ByteString, BS.ByteString)
-        getHeaders buff bytesRead = do
-            let (req, rest) = splitAfter delim buff
-            if delim `BS.isSuffixOf` req then do
-                return (req, rest) -- Found end of header
+        overlapSz = (BSC.length delim) - 1 -- A delim can only be split with a max of n-1 on each side
+        
+        getHeaders :: BS.ByteString -> BS.ByteString -> IO (BS.ByteString, BS.ByteString)
+        getHeaders acc chunk = do
+            -- Take the overlap from the accumulated and treat it as incoming to avoid delim being split
+            let overlap = BS.takeEnd overlapSz acc
+            let acc' = BS.dropEnd overlapSz acc
+            let chunk' = overlap `BS.append` chunk
+        
+            let (finalPart, rest) = splitAfter delim chunk'
+            if delim `BS.isSuffixOf` finalPart then do
+                let finalHeader = acc' `BS.append` finalPart
+                if BS.length finalHeader > maxHeaderLength
+                    then return (BS.empty, BS.empty) -- Length exceeded, force a 400 error
+                    else return (finalHeader, rest)
             else do
                 -- \r\n\r\n not found yet, recev more
-                chunk <- recv sock bufferSize
-                let newBytesRead = bytesRead + BS.length chunk
-
-                if newBytesRead > maxHeaderLength then return (BS.empty, BS.empty) -- Length exceeded, force a 400 error
-                else if BS.null chunk then return (buff, BS.empty) -- Hit EOF, terminate recursion
-                else getHeaders (buff `BS.append` chunk) newBytesRead -- All good, append new chunk to buffer and recurse
+                nextChunk <- recv sock bufferSize
+                if BS.null nextChunk then return (acc' `BS.append` chunk', BS.empty)
+                else do
+                    let nextAcc = acc' `BS.append` chunk'
+                    if BS.length nextAcc > maxHeaderLength then return (BS.empty, BS.empty)
+                    else getHeaders nextAcc nextChunk
 
     
 -- Returns (method, filepath, leftovers)
@@ -142,10 +152,10 @@ httpDecode sock leftovers = do
     
         -- Breaks up the request line by spaces into a triple
         unpackReqLine :: String -> (String, String, String)
-        unpackReqLine str = (fst split1, fst split2, (drop 1) $ snd split2)
+        unpackReqLine str = (fst split1, fst split2, drop 1 $ snd split2)
             where 
                 split1 = break (' '==) str
-                split2 = break (' '==) ((drop 1) $ snd split1)
+                split2 = break (' '==) (drop 1 $ snd split1)
     
         -- Checks if the string begins with a /
         checkHeadSlash :: String -> Bool
@@ -168,7 +178,7 @@ sendFile isHead filePath sock = do
 
         -- Resolve symlinks for the true size of the file
         canonPath <- canonicalizePath filePath
-        fileSize <- getFileSize (canonPath)
+        fileSize <- getFileSize canonPath
 
         let mimeType = getMime filePath
 
@@ -199,8 +209,8 @@ sendFile isHead filePath sock = do
 
 -- Sends a generated HTML file representing the list of files
 -- Path is relative to the server root
-sendHtmlIndex :: String -> [String] -> Socket -> IO ()
-sendHtmlIndex path contents sock = do
+sendHtmlIndex :: Bool -> String -> [String] -> Socket -> IO ()
+sendHtmlIndex isHead path contents sock = do
 
     let generatedPage = BSC.pack $ htmlBegin ++ htmlList ++ htmlEnd
     let htmlSize = BS.length generatedPage
@@ -211,7 +221,8 @@ sendHtmlIndex path contents sock = do
                             "Content-Type: text/html; charset=UTF-8\r\n" ++
                             "X-Content-Type-Options: nosniff\r\n\r\n"
     sendAll sock header
-    sendAll sock generatedPage
+    unless isHead $ do
+        sendAll sock generatedPage
 
     where
         htmlBegin = "<!DOCTYPE html><html lang=\"en\"><head><meta http-equiv=\"content-type\" content=\"text/html; charset=UTF-8\"><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"X-UA-Compatible\" content=\"ie=edge\"><title>Index</title></head><body><h1>Index</h1>"
@@ -270,7 +281,7 @@ respond (method, filePath) root sock flags = do
             let dirList = filter (not . isRestricted) dirListRaw
             
             dirList'    <- mapM (dirSlash absPath) dirList
-            sendHtmlIndex filePath (sort dirList') sock -- Relative to server root, not absolute paths
+            sendHtmlIndex isHead filePath (sort dirList') sock -- Relative to server root, not absolute paths
 
     
         -- Collapses traversals ("..")
@@ -313,6 +324,5 @@ doHttp root sock cliAddr flags = loop BS.empty
 
                 -- Recursively wait for the next request on the same socket
                 loop newLeftovers 
-    
--- TODO: Add functionality for a commandline switch to disable generated index pages. Will 404 if you try to access a directory instead.
+
 -- TODO: Add support for 404.html, maybe as built-in to the code and generated, or stored in root as a file.
