@@ -96,8 +96,9 @@ readRequest sock leftovers = do
     where
         getHeaders :: BS.ByteString -> Int -> IO (BS.ByteString, BS.ByteString)
         getHeaders buff bytesRead = do
-            let (req, rest) = splitAfter (BSC.pack "\r\n\r\n") buff
-            if not (BS.null rest) || (BSC.pack "\r\n\r\n") `BS.isSuffixOf` req then do
+            let delim = BSC.pack "\r\n\r\n"
+            let (req, rest) = splitAfter delim buff
+            if delim `BS.isSuffixOf` req then do
                 return (req, rest) -- Found end of header
             else do
                 -- \r\n\r\n not found yet, recev more
