@@ -96,9 +96,9 @@ readRequest sock leftovers = do
         Nothing -> return (BS.empty, BS.empty) -- Timeout occured (slowloris protection)
         Just (bs, rest) -> return (bs, rest)
     where
+        delim = BSC.pack "\r\n\r\n"
         getHeaders :: BS.ByteString -> Int -> IO (BS.ByteString, BS.ByteString)
         getHeaders buff bytesRead = do
-            let delim = BSC.pack "\r\n\r\n"
             let (req, rest) = splitAfter delim buff
             if delim `BS.isSuffixOf` req then do
                 return (req, rest) -- Found end of header
