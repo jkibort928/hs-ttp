@@ -97,7 +97,7 @@ readRequest sock leftovers = do
         Just (bs, rest) -> return (bs, rest)
     where
         delim = BSC.pack "\r\n\r\n"
-        overlapSz = (BSC.length delim) - 1 -- A delim can only be split with a max of n-1 on each side
+        overlapSz = (BS.length delim) - 1 -- A delim can only be split with a max of n-1 on each side
         
         getHeaders :: BS.ByteString -> BS.ByteString -> IO (BS.ByteString, BS.ByteString)
         getHeaders acc chunk = do
@@ -247,9 +247,9 @@ respond (method, filePath) root sock flags = do
         Nothing -> send403 sock -- Forbidden; Invalid path or hidden file
 
         Just collapsedPath -> do
-            let absFilePath = absRoot ++ ('/':collapsedPath)
-            let isHead = method == "HEAD"
-            
+        
+            let absFilePath = absRoot ++ ('/':collapsedPath)    
+
             isFile      <- doesFileExist absFilePath
             isDir       <- doesDirectoryExist absFilePath
 
@@ -261,7 +261,8 @@ respond (method, filePath) root sock flags = do
                 | otherwise -> send404 sock
 
     where
-
+        isHead = method == "HEAD"
+        
         isRestricted :: String -> Bool
         isRestricted ('.':_) = "serve-dotfiles" `notElem` flags
         isRestricted _       = False
