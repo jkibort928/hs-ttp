@@ -8,7 +8,7 @@ enjoyable and unique language to develop in.
 # INSTALLATION
 
 - [Install ghc and cabal using ghcup](https://www.haskell.org/ghcup/) if you haven't already
-- Run 'cabal install' in the repo directory to install the binary into ~/.cabal/bin
+- Run `cabal install` in the repo directory to install the binary into ~/.cabal/bin
 
 # USAGE
 
