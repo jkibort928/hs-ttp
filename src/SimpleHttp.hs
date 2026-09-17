@@ -44,6 +44,12 @@ sendTimeout = 30000000 -- 30 seconds to receive a chunk
 supportedMethods :: [String]
 supportedMethods = ["GET", "HEAD"]
 
+--- HTTP Redirect Codes ---
+
+-- Moved Permanently
+send301 :: Socket -> String -> IO ()
+send301 sock url = sendAll sock $ BSC.pack ("HTTP/1.1 301 Moved Permanently\r\nLocation: " ++ url ++ "\r\nContent-Length: 0\r\n\r\n")
+
 --- HTTP Error Status Codes ---
 
 -- Malformed request
@@ -253,15 +259,26 @@ respond (method, filePath) root sock flags = do
             isFile      <- doesFileExist absFilePath
             isDir       <- doesDirectoryExist absFilePath
 
-            --putStrLn ("collapsedPath: " ++ collapsedPath)
-            --putStrLn ("absFilePath: " ++ absFilePath)
+            putStrLn ("filePath: " ++ filePath)
+            putStrLn ("collapsedPath: " ++ collapsedPath)
+            putStrLn ("absFilePath: " ++ absFilePath)
 
-            if  | isFile    -> sendFile isHead absFilePath sock
-                | isDir     -> serveDirectory absFilePath isHead
-                | otherwise -> send404 sock
+            if  | isFile && hasTrailingSlash filePath       -> send301 sock (stripTail filePath)
+                | isFile                                    -> sendFile isHead absFilePath sock
+                | isDir && not (hasTrailingSlash filePath)  -> send301 sock (filePath ++ "/")
+                | isDir                                     -> serveDirectory absFilePath isHead
+                | otherwise                                 -> send404 sock
 
     where
         isHead = method == "HEAD"
+
+        hasTrailingSlash :: String -> Bool
+        hasTrailingSlash "" = False
+        hasTrailingSlash s  = last s == '/'
+
+        stripTail :: String -> String
+        stripTail []    = []
+        stripTail s     = init s
         
         isRestricted :: String -> Bool
         isRestricted ('.':_) = "serve-dotfiles" `notElem` flags
